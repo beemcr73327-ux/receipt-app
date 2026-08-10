@@ -51,9 +51,8 @@ const DEFAULT_BANKS = [
 ];
 
 const DEFAULT_SETTINGS = {
-  // 🔥 [สำคัญ] นำ Webhook URL (หรือ Cloudflare URL) มาวางที่บรรทัดนี้ได้เลยครับ!
-  webhookUrl: 'https://script.google.com/macros/s/AKfycbwYhD8P2zH2q7nQ-aI3951FfT1HnC0O2b0sM3u_n1p/exec', // <-- เปลี่ยนเป็น URL ของคุณ
-  cloudflareWorkerUrl: '',
+  webhookUrl: 'https://script.google.com/macros/s/AKfycbwYhD8P2zH2q7nQ-aI3951FfT1HnC0O2b0sM3u_n1p/exec',
+  cloudflareWorkerUrl: 'https://receipt-backend-worker.beemcr73327.workers.dev/',
   configSheetId: CONFIG_SHEET_ID,
   logSheetId: LOG_SHEET_ID
 };
@@ -257,7 +256,7 @@ class StorageService {
 
   async sendApiPost(payload) {
     const settings = this.getSettings();
-    const targetUrl = settings.webhookUrl || settings.cloudflareWorkerUrl;
+    const targetUrl = settings.cloudflareWorkerUrl || settings.webhookUrl;
 
     console.group(`🔄 [sendApiPost] Action: ${payload.action}`);
     console.log('📌 URL:', targetUrl || '❌ ไม่ได้ตั้งค่า');
@@ -428,8 +427,8 @@ class StorageService {
   getSettings() {
     try {
       const stored = JSON.parse(localStorage.getItem(KEYS.SETTINGS)) || DEFAULT_SETTINGS;
-      if (!stored.webhookUrl && !stored.cloudflareWorkerUrl) {
-         stored.webhookUrl = DEFAULT_SETTINGS.webhookUrl;
+      if (!stored.cloudflareWorkerUrl) {
+         stored.cloudflareWorkerUrl = DEFAULT_SETTINGS.cloudflareWorkerUrl;
       }
       return stored;
     } catch {
@@ -443,7 +442,7 @@ class StorageService {
 
   async syncToGoogleSheets(receiptRecord) {
     const settings = this.getSettings();
-    const targetUrl = settings.webhookUrl || settings.cloudflareWorkerUrl;
+    const targetUrl = settings.cloudflareWorkerUrl || settings.webhookUrl;
 
     console.group('🔄 [syncToGoogleSheets] Debug Info');
     console.log('📌 URL ที่ใช้ส่ง:', targetUrl || '❌ ไม่ได้ตั้งค่า');
@@ -503,7 +502,7 @@ class StorageService {
 
   async fetchConfigFromGoogleSheets() {
     const settings = this.getSettings();
-    const targetUrl = settings.webhookUrl || settings.cloudflareWorkerUrl;
+    const targetUrl = settings.cloudflareWorkerUrl || settings.webhookUrl;
 
     console.group('🔄 [fetchConfig] ดึงข้อมูล Config จาก Google Sheets');
     console.log('📌 URL:', targetUrl || '❌ ไม่ได้ตั้งค่า');
