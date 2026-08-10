@@ -179,20 +179,55 @@ class StorageService {
     const targetUrl = settings.webhookUrl || settings.cloudflareWorkerUrl;
     if (!targetUrl) return { success: false, message: 'ไม่มี Webhook URL' };
 
+    const cleanEmail = String(email || '').toLowerCase().trim();
+    const cleanPassword = String(password || '').trim();
+
+    // 1. Try direct POST first (Works if using Cloudflare Worker Proxy or CORS-enabled backend)
     try {
       const response = await fetch(targetUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'login', email: email.toLowerCase().trim(), password })
+        body: JSON.stringify({ action: 'login', email: cleanEmail, password: cleanPassword })
       });
       const data = await response.json();
       if (data.status === 'success' && data.user) {
          this.setCurrentUser(data.user);
          return { success: true, user: data.user };
-      } else {
+      } else if (data.status === 'error') {
          return { success: false, message: data.message || 'รหัสผ่านหรืออีเมลไม่ถูกต้อง' };
       }
     } catch (e) {
+      console.warn('⚠️ POST Login failed/CORS blocked, attempting GET fallback...', e.message);
+    }
+
+    // 2. Fallback: Use GET request (Google Apps Script doGet supports CORS headers cleanly in browsers)
+    try {
+      const configRes = await this.fetchConfigFromGoogleSheets();
+      const usersDict = configRes.users || this.getUserProfiles();
+      const user = usersDict[cleanEmail];
+
+      if (user) {
+        if (user.status === 'Blocked') {
+          return { success: false, message: 'บัญชีของคุณถูกระงับการใช้งาน' };
+        }
+        if (user.status === 'Pending') {
+          return { success: false, message: 'บัญชีอยู่ระหว่างรอการอนุมัติจาก Admin' };
+        }
+
+        // Compare password if rawPassword is provided in sheet
+        if (user.rawPassword && user.rawPassword !== cleanPassword) {
+          return { success: false, message: 'รหัสผ่านไม่ถูกต้อง' };
+        }
+
+        const safeUser = { ...user };
+        delete safeUser.rawPassword;
+        this.setCurrentUser(safeUser);
+        return { success: true, user: safeUser };
+      } else {
+        return { success: false, message: 'ไม่พบอีเมลนี้ในระบบ' };
+      }
+    } catch (fallbackErr) {
+      console.error('❌ Login fallback failed:', fallbackErr);
       return { success: false, message: 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์' };
     }
   }
