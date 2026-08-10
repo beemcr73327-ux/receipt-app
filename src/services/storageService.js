@@ -177,7 +177,7 @@ class StorageService {
   async loginWithPassword(email, password) {
     const settings = this.getSettings();
     const targetUrl = settings.webhookUrl || settings.cloudflareWorkerUrl;
-    if (!targetUrl) return { success: false, message: 'ไม่มี Webhook URL' };
+    if (!targetUrl) return { success: false, message: 'ไม่มี Webhook URL กรุณาตั้งค่าการเชื่อมต่อ' };
 
     const cleanEmail = String(email || '').toLowerCase().trim();
     const cleanPassword = String(password || '').trim();
@@ -189,7 +189,11 @@ class StorageService {
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'login', email: cleanEmail, password: cleanPassword })
       });
-      const data = await response.json();
+      
+      const text = await response.text();
+      let data = {};
+      try { data = JSON.parse(text); } catch(e) {}
+
       if (data.status === 'success' && data.user) {
          this.setCurrentUser(data.user);
          return { success: true, user: data.user };
@@ -203,8 +207,8 @@ class StorageService {
     // 2. Fallback: Use GET request (Google Apps Script doGet supports CORS headers cleanly in browsers)
     try {
       const configRes = await this.fetchConfigFromGoogleSheets();
-      const usersDict = configRes.users || this.getUserProfiles();
-      const user = usersDict[cleanEmail];
+      const usersDict = (configRes && configRes.users) ? configRes.users : this.getUserProfiles();
+      const user = usersDict ? usersDict[cleanEmail] : null;
 
       if (user) {
         if (user.status === 'Blocked') {
@@ -224,11 +228,11 @@ class StorageService {
         this.setCurrentUser(safeUser);
         return { success: true, user: safeUser };
       } else {
-        return { success: false, message: 'ไม่พบอีเมลนี้ในระบบ' };
+        return { success: false, message: 'URL เชื่อมต่อเซิร์ฟเวอร์ไม่ถูกต้อง (404 Not Found) หรือยังไม่ได้ตั้งค่า Webapp URL' };
       }
     } catch (fallbackErr) {
       console.error('❌ Login fallback failed:', fallbackErr);
-      return { success: false, message: 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์' };
+      return { success: false, message: 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์ (URL 404 หรือเครือข่ายขัดข้อง)' };
     }
   }
 
