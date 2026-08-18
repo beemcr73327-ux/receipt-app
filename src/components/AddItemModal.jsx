@@ -15,6 +15,8 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
   const [unitPrice, setUnitPrice] = useState('');
   const [quantity, setQuantity] = useState('');
   const [drc, setDrc] = useState('');
+  const [discountAmount, setDiscountAmount] = useState('');
+  const [discountDetails, setDiscountDetails] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -25,6 +27,8 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
       setUnitPrice(initialData.unitPrice || '');
       setQuantity(initialData.quantity || '');
       setDrc(initialData.drc || '');
+      setDiscountAmount(initialData.discountAmount !== undefined && initialData.discountAmount !== null ? initialData.discountAmount : '');
+      setDiscountDetails(initialData.discountDetails || '');
     } else {
       setTitle('');
       setDetails('');
@@ -32,6 +36,8 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
       setUnitPrice('');
       setQuantity('');
       setDrc('');
+      setDiscountAmount('');
+      setDiscountDetails('');
     }
     setError('');
   }, [isOpen, initialData]);
@@ -51,7 +57,7 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
   if (!isOpen) return null;
 
   // Real-time calculation inside modal
-  const calculateModalAmount = () => {
+  const calculateModalSubtotal = () => {
     const q = parseFloat(quantity) || 0;
     const p = parseFloat(unitPrice) || 0;
     let drcFactor = 1;
@@ -66,7 +72,9 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
     return q * p * drcFactor;
   };
 
-  const lineAmount = calculateModalAmount();
+  const lineSubtotal = calculateModalSubtotal();
+  const discVal = parseFloat(discountAmount) || 0;
+  const lineNetAmount = Math.max(0, lineSubtotal - discVal);
 
   const handleConfirm = (e) => {
     e.preventDefault();
@@ -93,7 +101,10 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
       unitPrice: parseFloat(unitPrice),
       quantity: parseFloat(quantity),
       drc: drc.trim(),
-      amount: lineAmount
+      discountAmount: discVal,
+      discountDetails: discountDetails.trim(),
+      subtotal: lineSubtotal,
+      amount: lineNetAmount
     });
 
     onClose();
@@ -235,11 +246,49 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
             />
           </div>
 
-          {/* 7. จำนวนเงินรวมรายการที่บันทึก (Real-time Calculated Box) */}
+          {/* 7 & 8. รายการปรับลด & รายละเอียด */}
+          <div className="grid grid-cols-2 gap-3 pt-1 border-t border-slate-100">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                รายการปรับลด
+              </label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                inputMode="decimal"
+                value={discountAmount}
+                onChange={(e) => setDiscountAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                รายละเอียด
+              </label>
+              <input
+                type="text"
+                value={discountDetails}
+                onChange={(e) => setDiscountDetails(e.target.value)}
+                placeholder=""
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          {/* 9. จำนวนเงินรวมรายการที่บันทึก (Real-time Calculated Box) */}
           <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-xl flex items-center justify-between mt-2">
-            <span className="text-xs font-semibold text-blue-900">จำนวนเงินรวมรายการที่บันทึก</span>
+            <div>
+              <div className="text-[11px] text-slate-500">
+                รวมก่อนลด: ฿{lineSubtotal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {discVal > 0 && <span className="text-amber-600 font-medium ml-1.5">(หักลด -฿{discVal.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>}
+              </div>
+              <span className="text-xs font-bold text-blue-900">ยอดชำระสุทธิรายการนี้</span>
+            </div>
             <span className="text-lg font-bold text-blue-700">
-              ฿ {lineAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ฿ {lineNetAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
 
