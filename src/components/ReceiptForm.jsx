@@ -16,9 +16,8 @@ import {
 import SearchableSelect from './SearchableSelect';
 import AddItemModal from './AddItemModal';
 import { bahttext } from '../utils/bahttext';
-import { formatThaiDate, formatThaiDateTime, getTodayISO, isoToThaiDate } from '../utils/dateUtils';
+import { formatThaiDate, formatThaiDateTime, getTodayISO, isoToThaiDate, formatPeriod } from '../utils/dateUtils';
 import { storageService } from '../services/storageService';
-import { openPrintInNewTab } from './PrintReceipt';
 
 const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, onSaveSuccess, onPrintTrigger, onBackToHistory, onClearViewData, onReqNewForm }, ref) => {
   // Form State
@@ -36,6 +35,7 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
   // Payment Section
   const [paymentMethod, setPaymentMethod] = useState('เงินโอน');
   const [bankDetails, setBankDetails] = useState('');
+  const [bankDetailsDisplay, setBankDetailsDisplay] = useState('');
   const [chequeNo, setChequeNo] = useState('');
   const [paymentDateIso, setPaymentDateIso] = useState(getTodayISO());
   const [paymentDateThai, setPaymentDateThai] = useState(formatThaiDate());
@@ -81,6 +81,7 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
     setItems([]);
     setPaymentMethod('เงินโอน');
     setBankDetails('');
+    setBankDetailsDisplay('');
     setChequeNo('');
     setPaymentDateIso(getTodayISO());
     setPaymentDateThai(formatThaiDate());
@@ -99,28 +100,83 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
     }
   };
 
+  const getBankDisplayLabel = (fullVal) => {
+    if (!fullVal) return '';
+    const cleanFull = String(fullVal).replace(/^'/, '').trim();
+    const matched = banks.find(b => typeof b === 'object' && b !== null && (cleanFull === String(b.fullValue).replace(/^'/, '').trim() || cleanFull === String(b.formatted).replace(/^'/, '').trim()));
+    if (matched) return String(matched.formatted).replace(/^'/, '').trim();
+    return cleanFull;
+  };
+
   useEffect(() => {
     if (viewReceiptData) {
-      setReceiptNo(viewReceiptData.receiptNo || '');
+      const cleanStr = (val) => String(val || '').replace(/^'/, '').trim();
+      
+      setReceiptNo(cleanStr(viewReceiptData.receiptNo));
       setDateIso(viewReceiptData.dateIso || getTodayISO());
-      setDateThai(viewReceiptData.dateThai || formatThaiDate());
-      setBuyerName(viewReceiptData.buyerName || '');
-      setBuyerAddress(viewReceiptData.buyerAddress || '');
-      setBuyerTaxId(viewReceiptData.buyerTaxId || viewReceiptData.taxId || '');
-      setItems(viewReceiptData.items || []);
-      setPaymentMethod(viewReceiptData.paymentMethod || 'เงินโอน');
-      setBankDetails(viewReceiptData.bankDetails || '');
-      setChequeNo(viewReceiptData.chequeNo || '');
+      setDateThai(cleanStr(viewReceiptData.dateThai) || formatThaiDate());
+      setBuyerName(cleanStr(viewReceiptData.buyerName));
+      setBuyerAddress(cleanStr(viewReceiptData.buyerAddress));
+      setBuyerTaxId(cleanStr(viewReceiptData.buyerTaxId || viewReceiptData.taxId));
+      const normalizedItems = (viewReceiptData.items || []).map(item => {
+        let title = cleanStr(item.title || item.itemTitle);
+        let details = cleanStr(item.details || item.itemDetails);
+        if (!details && title.includes('(') && title.endsWith(')')) {
+          const m = title.match(/^(.*?)\s*\((.*?)\)$/);
+          if (m) {
+            title = m[1].trim();
+            details = m[2].trim();
+          }
+        }
+        const q = Number(item.quantity || 0);
+        const p = Number(item.unitPrice || 0);
+        let drcFactor = 1;
+        if (item.drc && item.drc !== '-') {
+          const cleanDrc = parseFloat(item.drc.toString().replace('%', ''));
+          if (!isNaN(cleanDrc)) drcFactor = cleanDrc / 100;
+        }
+        const subtotal = item.subtotal || (q * p * drcFactor);
+        const discVal = Number(item.discountAmount || 0);
+        const netAmt = item.amount !== undefined && item.amount !== null && Number(item.amount) > 0
+          ? Number(item.amount)
+          : Math.max(0, subtotal - discVal);
+
+        return {
+          ...item,
+          title,
+          details,
+          subtotal,
+          discountAmount: discVal,
+          amount: netAmt
+        };
+      });
+
+      setItems(normalizedItems);
+      const rawPayMethod = cleanStr(viewReceiptData.paymentMethod) || 'เงินโอน';
+      let normPayMethod = rawPayMethod;
+      let rawBank = cleanStr(viewReceiptData.bankDetails);
+
+      if (rawPayMethod !== 'เงินสด' && !rawPayMethod.startsWith('เช็ค') && rawPayMethod !== 'เช็ค') {
+        normPayMethod = 'เงินโอน';
+        if (!rawBank) {
+          rawBank = rawPayMethod; // Fallback to paymentMethod for old records
+        }
+      }
+
+      setPaymentMethod(normPayMethod);
+      setBankDetails(rawBank);
+      setBankDetailsDisplay(getBankDisplayLabel(rawBank));
+      setChequeNo(cleanStr(viewReceiptData.chequeNo));
       setPaymentDateIso(viewReceiptData.paymentDateIso || getTodayISO());
-      setPaymentDateThai(viewReceiptData.paymentDateThai || formatThaiDate());
-      setNotes(viewReceiptData.notes || '');
+      setPaymentDateThai(cleanStr(viewReceiptData.paymentDateThai) || formatThaiDate());
+      setNotes(cleanStr(viewReceiptData.notes));
       setIsSaved(true);
       setIsSaving(false);
       setStatusMessage(null);
     } else {
       handleNewForm();
     }
-  }, [viewReceiptData]);
+  }, [viewReceiptData, banks]);
 
   const handleDateIsoChange = (val) => {
     setDateIso(val);
@@ -231,7 +287,7 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
       paymentDateIso,
       paymentDateThai,
       notes,
-      cashierName: currentUser?.fullName || 'ผู้รับเงิน',
+      cashierName: currentUser?.fullName || (currentUser?.firstName ? `${currentUser.firstName} ${currentUser.lastName || ''}`.trim() : '') || 'ผู้รับเงิน',
       status: 'ปกติ',
       printedTimestamp: nowTimestamp
     };
@@ -284,7 +340,6 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
     if (!canPrintInForm) return;
     const payload = buildPayload();
     onPrintTrigger(payload);
-    openPrintInNewTab(payload);
   };
 
   // Expose methods via ref
@@ -525,6 +580,7 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
                     <th className="py-2 px-2.5 text-right w-24">ราคา/หน่วย</th>
                     <th className="py-2 px-2.5 text-center w-16">จำนวน</th>
                     <th className="py-2 px-2.5 text-center w-16">DRC</th>
+                    <th className="py-2 px-2.5 text-right w-20">เพิ่มลด</th>
                     <th className="py-2 px-2.5 text-right w-28">จำนวนเงิน</th>
                     <th className="py-2 px-2.5 text-center w-16">จัดการ</th>
                   </tr>
@@ -537,8 +593,15 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
                         <td className="py-2 px-2.5 font-semibold text-slate-900">
                           {String(item.title || '').replace(/^[A-Za-z0-9]+:\s*/, '')}
                         </td>
-                        <td className="py-2 px-2.5 text-slate-600 max-w-[150px] truncate">{item.details || '-'}</td>
-                        <td className="py-2 px-2.5 text-center text-slate-600">{item.period || '-'}</td>
+                        <td className="py-2 px-2.5 text-slate-600 max-w-[150px] truncate">
+                          {item.details || '-'}
+                          {item.discountDetails ? (
+                            <span className="block text-[10px] italic text-amber-700">
+                              *{item.discountDetails}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="py-2 px-2.5 text-center text-slate-600 font-medium">{formatPeriod(item.period) || '-'}</td>
                         <td className="py-2 px-2.5 text-right font-medium text-slate-800">
                           {Number(item.unitPrice || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                         </td>
@@ -547,6 +610,11 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
                         </td>
                         <td className="py-2 px-2.5 text-center font-medium text-slate-700">
                           {item.drc ? (item.drc.includes('%') ? item.drc : `${item.drc}%`) : '-'}
+                        </td>
+                        <td className="py-2 px-2.5 text-right font-medium text-amber-700">
+                          {Number(item.discountAmount || 0) > 0
+                            ? `-${Number(item.discountAmount).toLocaleString('th-TH', { minimumFractionDigits: 2 })}`
+                            : '-'}
                         </td>
                         <td className="py-2 px-2.5 text-right font-bold text-blue-700">
                           {Number(item.amount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
@@ -587,7 +655,7 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={9} className="h-56 py-16 text-center align-middle text-slate-400 text-xs font-medium">
+                      <td colSpan={10} className="h-56 py-16 text-center align-middle text-slate-400 text-xs font-medium">
                         ยังไม่มีรายการสินค้า กดปุ่ม "+ เพิ่มรายการ" เพื่อเพิ่มรายการ
                       </td>
                     </tr>
@@ -648,8 +716,21 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
                 {paymentMethod === 'เงินโอน' ? (
                   <SearchableSelect
                     options={banks}
-                    value={bankDetails}
-                    onChange={(val) => setBankDetails(val)}
+                    value={bankDetailsDisplay}
+                    onChange={(val) => {
+                      setBankDetailsDisplay(val);
+                      setBankDetails(val);
+                    }}
+                    onSelectOption={(opt) => {
+                      if (typeof opt === 'object' && opt !== null) {
+                        setBankDetailsDisplay(String(opt.formatted || '').replace(/^'/, '').trim());
+                        setBankDetails(String(opt.fullValue || '').replace(/^'/, '').trim());
+                      } else {
+                        const clean = String(opt || '').replace(/^'/, '').trim();
+                        setBankDetailsDisplay(clean);
+                        setBankDetails(clean);
+                      }
+                    }}
                     showAllOnFocus={true}
                     placeholder=""
                     disabled={isSaved}

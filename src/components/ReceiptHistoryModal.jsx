@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Printer, Ban, CheckCircle2, AlertCircle, ChevronRight, History, Plus, Eye } from 'lucide-react';
 import { storageService } from '../services/storageService';
+import { formatThaiDateTime, normalizeThaiDate } from '../utils/dateUtils';
 
 export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptDetails, onSelectReceipt, onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -8,7 +9,25 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
   const [cancelReason, setCancelReason] = useState('');
   const [error, setError] = useState('');
 
-  const receipts = storageService.getReceipts();
+  const cleanStr = (val) => String(val || '').replace(/^'/, '').trim();
+  const rawReceipts = storageService.getReceipts();
+  const receipts = rawReceipts.map(r => ({
+    ...r,
+    receiptNo: cleanStr(r.receiptNo),
+    dateThai: normalizeThaiDate(r.dateThai),
+    buyerName: cleanStr(r.buyerName),
+    buyerAddress: cleanStr(r.buyerAddress),
+    buyerTaxId: cleanStr(r.buyerTaxId),
+    taxId: cleanStr(r.taxId),
+    paymentMethod: cleanStr(r.paymentMethod),
+    paymentDateThai: normalizeThaiDate(r.paymentDateThai),
+    cashierName: cleanStr(r.cashierName),
+    items: r.items ? r.items.map(it => ({
+      ...it,
+      title: cleanStr(it.title),
+      period: cleanStr(it.period)
+    })) : []
+  }));
 
   const filteredReceipts = receipts.filter(r => {
     const q = searchTerm.toLowerCase();
@@ -117,16 +136,39 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
                   <tbody className="divide-y divide-slate-100">
                     {filteredReceipts.map((r, idx) => {
                       const isCancelled = r.status === 'ยกเลิก';
-                      const firstItemTitle = r.items && r.items.length > 0 ? r.items[0].title : (r.itemTitle || '-');
+                      const firstItem = r.items && r.items[0];
+                      const rawTitle = firstItem ? (firstItem.title || firstItem.itemTitle || '') : '';
+                      const cleanTitle = rawTitle.includes('(') ? rawTitle.split('(')[0].trim() : rawTitle;
+                      const firstItemTitle = cleanTitle ? (r.items.length > 1 ? `${cleanTitle} (และอีก ${r.items.length - 1} รายการ)` : cleanTitle) : '-';
+
+                      const computedTotal = (r.items && r.items.length > 0)
+                        ? r.items.reduce((sum, item) => {
+                            const q = Number(item.quantity || 0);
+                            const p = Number(item.unitPrice || 0);
+                            let drcFactor = 1;
+                            if (item.drc && item.drc !== '-') {
+                              const cleanDrc = parseFloat(item.drc.toString().replace('%', ''));
+                              if (!isNaN(cleanDrc)) drcFactor = cleanDrc / 100;
+                            }
+                            const subtotal = item.subtotal || (q * p * drcFactor);
+                            const disc = Number(item.discountAmount || 0);
+                            const amt = (item.amount !== undefined && item.amount !== null && Number(item.amount) > 0)
+                              ? Number(item.amount)
+                              : Math.max(0, subtotal - disc);
+                            return sum + amt;
+                          }, 0)
+                        : Number(r.totalAmount || 0);
+
                       return (
-                        <tr key={idx} className={`hover:bg-slate-50 transition ${isCancelled ? 'opacity-60 bg-rose-50/50' : ''}`}>
+                        <tr key={idx} className={`hover:bg-slate-50 transition ${isCancelled ? 'opacity-60 bg-slate-100/80 grayscale-[0.5]' : ''}`}>
                           <td className="py-3 px-3 text-slate-600 font-medium whitespace-nowrap">{r.dateThai}</td>
                           <td className="py-3 px-3 font-bold text-blue-700 whitespace-nowrap">
                             <button
                               type="button"
-                              onClick={() => onViewReceiptDetails && onViewReceiptDetails(r)}
-                              className="hover:underline cursor-pointer text-left font-bold text-blue-700"
-                              title="คลิกเพื่อดูรายละเอียดใบเสร็จ"
+                              onClick={() => !isCancelled && onViewReceiptDetails && onViewReceiptDetails(r)}
+                              disabled={isCancelled}
+                              className={`text-left font-bold ${isCancelled ? 'text-slate-400 cursor-not-allowed' : 'hover:underline cursor-pointer text-blue-700'}`}
+                              title={isCancelled ? "ใบเสร็จถูกยกเลิกแล้ว" : "คลิกเพื่อดูรายละเอียดใบเสร็จ"}
                             >
                               {r.receiptNo}
                             </button>
@@ -134,7 +176,7 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
                           <td className="py-3 px-3 text-slate-800 font-medium">{r.buyerName}</td>
                           <td className="py-3 px-3 text-slate-600 max-w-xs truncate">{firstItemTitle}</td>
                           <td className="py-3 px-3 text-right font-bold text-slate-900 whitespace-nowrap">
-                            {Number(r.totalAmount || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                            {Number(computedTotal || 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })}
                           </td>
                           <td className="py-3 px-3 text-slate-500 text-xs">{r.cashierName}</td>
                           <td className="py-3 px-3 text-center whitespace-nowrap">
@@ -151,7 +193,9 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
                             )}
                           </td>
                           <td className="py-3 px-3 text-center whitespace-nowrap text-[11px] text-slate-500 font-medium">
-                            {isCancelled ? (r.cancelledAt || r.updatedAt || '-') : (r.updatedAt || '-')}
+                            {isCancelled
+                              ? (r.cancelledAt ? formatThaiDateTime(r.cancelledAt) : r.updatedAt ? formatThaiDateTime(r.updatedAt) : '-')
+                              : (r.updatedAt ? formatThaiDateTime(r.updatedAt) : r.printedTimestamp ? formatThaiDateTime(r.printedTimestamp) : '-')}
                           </td>
                           <td className="py-3 px-3 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1.5">
@@ -159,7 +203,7 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
                                 onClick={() => {
                                   onSelectReceipt(r);
                                 }}
-                                className="p-1.5 bg-slate-100 hover:bg-blue-50 text-blue-600 rounded-lg transition border border-slate-200 cursor-pointer"
+                                className={`p-1.5 rounded-lg transition border bg-slate-100 hover:bg-blue-50 text-blue-600 border-slate-200 cursor-pointer`}
                                 title="พิมพ์ใบเสร็จ"
                               >
                                 <Printer className="w-4 h-4" />

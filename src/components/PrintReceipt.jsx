@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOMServer from 'react-dom/server';
 import { bahttext } from '../utils/bahttext';
-import { formatThaiDateTime } from '../utils/dateUtils';
+import { formatThaiDateTime, formatPeriod, normalizeThaiDate } from '../utils/dateUtils';
 
 /**
  * Trigger print dialog directly from the main page using a hidden iframe.
@@ -9,114 +9,16 @@ import { formatThaiDateTime } from '../utils/dateUtils';
  */
 export function openPrintInNewTab(receiptData) {
   if (!receiptData) return;
-
-  // Render static HTML string using ReactDOMServer
-  const receiptHtml = ReactDOMServer.renderToStaticMarkup(
-    <PrintReceiptContent receiptData={receiptData} />
-  );
-
-  const fullHtml = `<!DOCTYPE html>
-<html lang="th">
-<head>
-  <meta charset="UTF-8" />
-  <title>ใบเสร็จรับเงิน - ${receiptData.receiptNo || ''}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
-  <style>
-    @font-face {
-      font-family: 'TH Sarabun New';
-      src: local('TH Sarabun New'), local('THSarabunNew'), url('https://fonts.gstatic.com/s/sarabun/v13/DtVj87q2iU2g7U5821u0.woff2') format('woff2');
-      font-weight: normal;
-      font-style: normal;
-      font-display: swap;
-    }
-    @font-face {
-      font-family: 'TH Sarabun New';
-      src: local('TH Sarabun New Bold'), local('THSarabunNew-Bold'), url('https://fonts.gstatic.com/s/sarabun/v13/DtVk87q2iU2g7U5865-x.woff2') format('woff2');
-      font-weight: bold;
-      font-style: normal;
-      font-display: swap;
-    }
-    @page {
-      size: A4 portrait;
-      margin: 6mm 8mm;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      width: 100%; height: 100%;
-      font-family: 'TH Sarabun New', 'THSarabunNew', 'Sarabun', 'Tahoma', sans-serif;
-      background: white; color: black;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-    .print-page {
-      width: 100%;
-      height: 275mm;
-      max-height: 275mm;
-      padding: 2mm;
-      position: relative;
-      page-break-after: always;
-      break-after: page;
-      page-break-inside: avoid;
-      break-inside: avoid;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-    .print-page:last-child {
-      page-break-after: auto;
-      break-after: auto;
-    }
-  </style>
-</head>
-<body>
-  ${receiptHtml}
-</body>
-</html>`;
-
-  // Create temporary hidden iframe element in document body
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  iframe.style.visibility = 'hidden';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentWindow.document;
-  doc.open();
-  doc.write(fullHtml);
-  doc.close();
-
-  const triggerPrint = () => {
-    try {
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    } catch (err) {
-      console.error('Print error:', err);
-    }
-
-    // Clean up temporary iframe after user interacts with print dialog
-    setTimeout(() => {
-      if (iframe.parentNode) {
-        document.body.removeChild(iframe);
-      }
-    }, 1000);
-  };
-
-  // Wait for font loading in iframe document to prevent blank text (FOIT)
-  const iframeDoc = iframe.contentWindow.document;
-  if (iframeDoc.fonts && iframeDoc.fonts.ready) {
-    iframeDoc.fonts.ready.then(() => {
-      setTimeout(triggerPrint, 350);
-    }).catch(() => {
-      setTimeout(triggerPrint, 500);
+  try {
+    // Wait for React render to complete, then wait one more frame for paint
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.focus();
+        window.print();
+      }, 100);
     });
-  } else {
-    setTimeout(triggerPrint, 500);
+  } catch (e) {
+    console.error('Print error:', e);
   }
 }
 
@@ -127,7 +29,7 @@ function PrintReceiptContent({ receiptData }) {
   if (!receiptData) return null;
 
   const receiptNo = receiptData?.receiptNo || receiptData?.receipt_no || receiptData?.no || '';
-  const dateThai = receiptData?.dateThai || receiptData?.date || receiptData?.dateIso || receiptData?.createdDate || '';
+  const dateThai = normalizeThaiDate(receiptData?.dateThai || receiptData?.date || receiptData?.dateIso || receiptData?.createdDate);
   const buyerName = receiptData?.buyerName || receiptData?.buyer || receiptData?.customerName || receiptData?.name || '';
   const buyerAddress = receiptData?.buyerAddress || receiptData?.address || '';
   const buyerTaxId = receiptData?.buyerTaxId || receiptData?.taxId || receiptData?.tax_id || receiptData?.taxNo || '';
@@ -152,10 +54,19 @@ function PrintReceiptContent({ receiptData }) {
   const paymentMethod = receiptData?.paymentMethod || receiptData?.payment || 'เงินโอน';
   const bankDetails = receiptData?.bankDetails || receiptData?.bank || '';
   const chequeNo = receiptData?.chequeNo || receiptData?.cheque || '';
-  const paymentDate = receiptData?.paymentDate || receiptData?.paymentDateThai || receiptData?.paymentDateIso || '';
+  const paymentDate = normalizeThaiDate(receiptData?.paymentDate || receiptData?.paymentDateThai || receiptData?.paymentDateIso);
   const notes = receiptData?.notes || receiptData?.remark || '';
-  const cashierName = receiptData?.cashierName || receiptData?.cashier || receiptData?.user || '';
-  const printedTimestamp = receiptData?.printedTimestamp || receiptDa  // Style constants
+  const cashierName = receiptData?.cashierName || receiptData?.cashier || receiptData?.receiverName || '';
+  const isCancelled = receiptData?.status === 'ยกเลิก' || 
+                      String(receiptData?.status || '').trim() === 'ยกเลิก' ||
+                      Boolean(receiptData?.cancelReason && String(receiptData?.cancelReason).trim().length > 0);
+  const rawTs = receiptData?.printedTimestamp || receiptData?.updatedAt || '';
+  const printedTimestamp = rawTs ? formatThaiDateTime(rawTs) : formatThaiDateTime();
+  const tsParts = printedTimestamp.includes(' ') ? printedTimestamp.split(' ') : [printedTimestamp, ''];
+  const printDateVal = normalizeThaiDate(tsParts[0] || dateThai);
+  const printTimeVal = tsParts[1] || '';
+
+  // Style constants
   const LINE_COLOR = "#000000";
   const border1pt = { border: `1pt solid ${LINE_COLOR}` };
   const borderRight075 = { borderRight: `0.75pt solid ${LINE_COLOR}` };
@@ -164,9 +75,30 @@ function PrintReceiptContent({ receiptData }) {
   const titleBoxBorder = { border: `1pt solid ${LINE_COLOR}` };
   const fontFamilyStyle = { fontFamily: "'TH Sarabun New', 'THSarabunNew', 'Sarabun', 'Tahoma', sans-serif" };
 
+  const getShortBankString = (str) => {
+    if (!str) return '';
+    const clean = String(str).replace(/^'/, '').trim();
+    const parts = clean.split(/\s+/);
+    if (parts.length >= 2) {
+      const abbr = parts[0];
+      const lastPart = parts[parts.length - 1];
+      if (/^\d+$/.test(lastPart)) {
+        if (lastPart.length > 4) {
+          return `${abbr} ${lastPart.slice(-4)}`;
+        }
+        return `${abbr} ${lastPart}`;
+      }
+    }
+    return clean;
+  };
+
   let paymentText = paymentMethod;
-  if (paymentMethod === 'เงินโอน' && bankDetails) {
-    paymentText += ` ธนาคาร : ${bankDetails}`;
+  const isTransfer = paymentMethod === 'เงินโอน' || 
+                     (!['เงินสด', 'เช็ค'].includes(paymentMethod) && !paymentMethod.startsWith('เช็ค'));
+
+  if (isTransfer) {
+    const targetBank = (paymentMethod && paymentMethod !== 'เงินโอน') ? paymentMethod : bankDetails;
+    paymentText = getShortBankString(targetBank);
   } else if (paymentMethod === 'เช็ค' && chequeNo) {
     paymentText += ` เลขที่เช็ค : ${chequeNo}`;
   }
@@ -174,22 +106,57 @@ function PrintReceiptContent({ receiptData }) {
     paymentText += ` วันที่ ${paymentDate}`;
   }
 
-  // Items per page capacity (12 items fill down to table frame nicely)
-  const ITEMS_PER_PAGE = 12;
+  // Calculate dynamic line weight for each item based on text length and discount line presence
+  const getItemHeightWeight = (item) => {
+    if (!item) return 1.0;
+    let weight = 1.0;
+    const titleStr = String(item.title || item.itemTitle || '').trim();
+    const detailsStr = String(item.details || item.itemDetails || '').trim();
+    const fullStr = detailsStr ? `${titleStr} ${detailsStr}` : titleStr;
+    if (fullStr.length > 35) {
+      weight += 0.3 * Math.floor(fullStr.length / 35);
+    }
+    const discAmt = Number(item.discountAmount || 0);
+    const discDetails = String(item.discountDetails || '').trim();
+    if (discAmt > 0 || discDetails) {
+      weight += 0.4;
+    }
+    return weight;
+  };
+
+  // Dynamic chunking algorithm based on item weight (MAX_PAGE_WEIGHT = 9.6: 9-10 normal items, 6-7 discount items)
+  const MAX_PAGE_WEIGHT = 9.6;
   const itemChunks = [];
   if (!items || items.length === 0) {
     itemChunks.push([]);
   } else {
-    for (let i = 0; i < items.length; i += ITEMS_PER_PAGE) {
-      itemChunks.push(items.slice(i, i + ITEMS_PER_PAGE));
+    let currentChunk = [];
+    let currentWeight = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const itm = items[i];
+      const w = getItemHeightWeight(itm);
+
+      if (currentChunk.length > 0 && (currentWeight + w > MAX_PAGE_WEIGHT)) {
+        itemChunks.push(currentChunk);
+        currentChunk = [itm];
+        currentWeight = w;
+      } else {
+        currentChunk.push(itm);
+        currentWeight += w;
+      }
+    }
+    if (currentChunk.length > 0) {
+      itemChunks.push(currentChunk);
     }
   }
   const totalPages = itemChunks.length;
 
   const renderSinglePage = (chunk, pageIdx, isCopy = false) => {
     const isLastPage = pageIdx === totalPages - 1;
-    const startSeq = pageIdx * ITEMS_PER_PAGE;
-    const emptyRowsCount = Math.max(0, ITEMS_PER_PAGE - (chunk ? chunk.length : 0));
+    const startSeq = itemChunks.slice(0, pageIdx).reduce((sum, chk) => sum + (chk ? chk.length : 0), 0);
+    const chunkWeight = (chunk || []).reduce((sum, item) => sum + getItemHeightWeight(item), 0);
+    const emptyRowsCount = Math.max(0, Math.floor((MAX_PAGE_WEIGHT - chunkWeight) / 1.0));
 
     return (
       <div
@@ -200,7 +167,8 @@ function PrintReceiptContent({ receiptData }) {
           background: 'white',
           color: '#000000',
           width: '194mm',
-          minHeight: '275mm',
+          height: '275mm',
+          maxHeight: '275mm',
           boxSizing: 'border-box',
           position: 'relative',
           display: 'flex',
@@ -209,10 +177,39 @@ function PrintReceiptContent({ receiptData }) {
           pageBreakAfter: 'always',
           breakAfter: 'page',
           margin: '0 auto',
-          padding: '2mm'
+          padding: '2mm',
+          overflow: 'hidden'
         }}
       >
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+          {/* Watermark กล่องข้อความสีแดง "ยกเลิก" กลางหน้ากระดาษ (ตรง ไม่เอียง) */}
+          {isCancelled && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 9999,
+                pointerEvents: 'none',
+                border: '6px solid #ef4444',
+                color: '#ef4444',
+                fontSize: '60pt',
+                fontWeight: 'bold',
+                padding: '12px 56px',
+                borderRadius: '16px',
+                letterSpacing: '0.08em',
+                backgroundColor: 'rgba(255, 255, 255, 0.85)',
+                boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.3)',
+                textAlign: 'center',
+                lineHeight: '1.2',
+                WebkitPrintColorAdjust: 'exact',
+                printColorAdjust: 'exact'
+              }}
+            >
+              ยกเลิก
+            </div>
+          )}
 
           {/* Upper Section */}
           <div style={{ flexShrink: 0 }}>
@@ -228,7 +225,7 @@ function PrintReceiptContent({ receiptData }) {
                 โทร. 082-9828235
               </p>
               <p style={{ fontSize: '11pt', fontWeight: 'normal', lineHeight: '1.35', color: '#000000', margin: '1px 0 0 0' }}>
-                เลขประจำตัวผู้เสียภาษีอากร 031556902038
+                เลขประจำตัวผู้เสียภาษีอากร 0315569002038
               </p>
             </div>
 
@@ -290,16 +287,16 @@ function PrintReceiptContent({ receiptData }) {
           </div>
 
           {/* Table Container - Fill space down to bottom line */}
-          <div style={{ ...border1pt, marginTop: '-1px', flex: 1, display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ ...border1pt, marginTop: '-1px', flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
 
             {/* ลายน้ำกึ่งกลางกรอบตาราง (Watermark Size 18pt, Opacity 0.15) */}
             <div style={{
               position: 'absolute',
               top: 0, left: 0, right: 0, bottom: 0,
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              pointerEvents: 'none', zIndex: 0, opacity: 0.15
+              pointerEvents: 'none', zIndex: 0
             }}>
-              <div style={{ textAlign: 'center', padding: '8px 20px' }}>
+              <div style={{ textAlign: 'center', padding: '8px 20px', opacity: 0.15 }}>
                 <div style={{ fontSize: '18pt', fontWeight: 'bold', color: '#000000', letterSpacing: '0.04em' }}>
                   บริษัท ศรีสุข พูนทรัพย์ ยางพารา จำกัด
                 </div>
@@ -326,43 +323,66 @@ function PrintReceiptContent({ receiptData }) {
                     const seqNo = startSeq + idx + 1;
                     const fullDesc = item.details ? `${item.title} ${item.details}` : item.title;
                     const drcText = (item.drc && item.drc !== '-') ? (item.drc.toString().includes('%') ? item.drc : `${item.drc}%`) : '';
+                    
+                    // Calculate subtotal (gross before discount)
+                    const q = Number(item.quantity || 0);
+                    const p = Number(item.unitPrice || 0);
+                    let drcFactor = 1;
+                    if (item.drc && item.drc !== '-') {
+                      const cleanDrc = parseFloat(item.drc.toString().replace('%', ''));
+                      if (!isNaN(cleanDrc)) drcFactor = cleanDrc / 100;
+                    }
+                    const itemSubtotal = item.subtotal || (q * p * drcFactor);
+                    const discVal = Number(item.discountAmount || 0);
+                    const discDetails = item.discountDetails || '';
+
                     return (
-                      <tr key={idx} style={{ verticalAlign: 'top' }}>
-                        <td style={{ padding: '5px 4px', textAlign: 'center', fontWeight: 'normal', width: '40px', color: '#000000', ...borderRight075 }}>
+                      <tr key={idx} style={{ verticalAlign: 'top', height: '24px' }}>
+                        <td style={{ padding: '3px 4px', textAlign: 'center', fontWeight: 'normal', width: '40px', color: '#000000', ...borderRight075 }}>
                           {seqNo}
                         </td>
-                        <td style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 'normal', width: '65px', color: '#000000', ...borderRight075 }}>
+                        <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 'normal', width: '65px', color: '#000000', ...borderRight075 }}>
                           {item.quantity ? Number(item.quantity).toLocaleString('th-TH') : '-'}
                         </td>
-                        <td style={{ padding: '5px 10px', textAlign: fullDesc ? 'left' : 'center', fontWeight: 'normal', color: '#000000', lineHeight: '1.45', ...borderRight075 }}>
-                          {fullDesc || ''}
+                        <td style={{ padding: '3px 10px', textAlign: fullDesc ? 'left' : 'center', fontWeight: 'normal', color: '#000000', lineHeight: '1.35', ...borderRight075 }}>
+                          <div>{fullDesc || ''}</div>
+                          {discDetails ? (
+                            <div style={{ fontStyle: 'italic', fontSize: '10pt', color: '#333333', marginTop: '1px' }}>
+                              *{discDetails}
+                            </div>
+                          ) : null}
                         </td>
-                        <td style={{ padding: '5px 6px', textAlign: 'center', width: '85px', fontWeight: 'normal', color: '#000000', ...borderRight075 }}>
+                        <td style={{ padding: '3px 6px', textAlign: 'center', width: '85px', fontWeight: 'normal', color: '#000000', ...borderRight075 }}>
                           {item.unitPrice ? Number(item.unitPrice).toLocaleString('th-TH', { minimumFractionDigits: 1 }) : ''}
                         </td>
-                        <td style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 'normal', width: '55px', color: '#000000', ...borderRight075 }}>
+                        <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 'normal', width: '55px', color: '#000000', ...borderRight075 }}>
                           {drcText}
                         </td>
-                        <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 'normal', color: '#000000', width: '115px' }}>
-                          {item.amount ? Number(item.amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                        <td style={{ padding: '3px 10px', textAlign: 'right', fontWeight: 'normal', color: '#000000', width: '115px' }}>
+                          <div>{itemSubtotal ? Number(itemSubtotal).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</div>
+                          {discVal > 0 ? (
+                            <div style={{ fontStyle: 'italic', fontSize: '10pt', color: '#333333', marginTop: '1px' }}>
+                              ({Number(discVal).toLocaleString('th-TH')})
+                            </div>
+                          ) : null}
                         </td>
                       </tr>
                     );
                   })
                 ) : (
-                  <tr style={{ verticalAlign: 'top' }}>
-                    <td style={{ padding: '5px 4px', textAlign: 'center', fontWeight: 'normal', width: '40px', color: '#000000', ...borderRight075 }}></td>
-                    <td style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 'normal', width: '65px', color: '#000000', ...borderRight075 }}></td>
-                    <td style={{ padding: '5px 10px', textAlign: 'center', fontWeight: 'normal', color: '#000000', lineHeight: '1.45', ...borderRight075 }}></td>
-                    <td style={{ padding: '5px 6px', textAlign: 'center', width: '85px', fontWeight: 'normal', color: '#000000', ...borderRight075 }}></td>
-                    <td style={{ padding: '5px 6px', textAlign: 'center', fontWeight: 'normal', width: '55px', color: '#000000', ...borderRight075 }}></td>
-                    <td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 'normal', color: '#000000', width: '115px' }}>0.00</td>
+                  <tr style={{ verticalAlign: 'top', height: '24px' }}>
+                    <td style={{ padding: '3px 4px', textAlign: 'center', fontWeight: 'normal', width: '40px', color: '#000000', ...borderRight075 }}></td>
+                    <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 'normal', width: '65px', color: '#000000', ...borderRight075 }}></td>
+                    <td style={{ padding: '3px 10px', textAlign: 'center', fontWeight: 'normal', color: '#000000', lineHeight: '1.35', ...borderRight075 }}></td>
+                    <td style={{ padding: '3px 6px', textAlign: 'center', width: '85px', fontWeight: 'normal', color: '#000000', ...borderRight075 }}></td>
+                    <td style={{ padding: '3px 6px', textAlign: 'center', fontWeight: 'normal', width: '55px', color: '#000000', ...borderRight075 }}></td>
+                    <td style={{ padding: '3px 10px', textAlign: 'right', fontWeight: 'normal', color: '#000000', width: '115px' }}>0.00</td>
                   </tr>
                 )}
 
-                {/* Empty rows to fill the remaining table height nicely down to bottom line */}
+                {/* Empty rows to fill remaining height nicely */}
                 {Array.from({ length: emptyRowsCount }).map((_, emptyIdx) => (
-                  <tr key={`empty-${emptyIdx}`}>
+                  <tr key={`empty-${emptyIdx}`} style={{ height: '24px' }}>
                     <td style={{ ...borderRight075 }}></td>
                     <td style={{ ...borderRight075 }}></td>
                     <td style={{ ...borderRight075 }}></td>
@@ -371,6 +391,16 @@ function PrintReceiptContent({ receiptData }) {
                     <td></td>
                   </tr>
                 ))}
+
+                {/* Filler Row to absorb leftover height in table box */}
+                <tr style={{ height: 'auto' }}>
+                  <td style={{ ...borderRight075 }}></td>
+                  <td style={{ ...borderRight075 }}></td>
+                  <td style={{ ...borderRight075 }}></td>
+                  <td style={{ ...borderRight075 }}></td>
+                  <td style={{ ...borderRight075 }}></td>
+                  <td></td>
+                </tr>
 
                 {/* Grand Total Row (shows on last page) */}
                 {isLastPage ? (
@@ -441,9 +471,9 @@ function PrintReceiptContent({ receiptData }) {
             </div>
 
             {/* Printed Timestamp Footer (Italic 2 lines) */}
-            <div style={{ textAlign: 'right', fontSize: '10pt', fontWeight: 'normal', fontStyle: 'italic', color: '#000000', marginTop: '8px', lineHeight: '1.3' }}>
-              <div>เอกสารฉบับนี้พิมพ์ ณ วันที่ {printedTimestamp.split(' ')[0] || dateThai}</div>
-              <div>เวลา {printedTimestamp.split(' ')[1] || '00:00:00'}</div>
+            <div style={{ textAlign: 'right', fontSize: '10pt', fontWeight: 'normal', fontStyle: 'italic', color: '#000000', marginTop: '4px', marginBottom: '2px', lineHeight: '1.3' }}>
+              <div>เอกสารฉบับนี้พิมพ์ ณ วันที่ {printDateVal}</div>
+              <div>เวลา {printTimeVal}</div>
             </div>
           </div>
 

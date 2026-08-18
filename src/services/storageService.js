@@ -11,15 +11,27 @@ const KEYS = {
   TOPS: 'receipt_config_tops',
   PAYMENTS: 'receipt_config_payments',
   BANKS: 'receipt_config_banks',
+  VOUCHER_BANKS: 'voucher_config_banks',
+  SOURCE_BANKS: 'voucher_config_source_banks',
+  DEST_BANKS: 'voucher_config_dest_banks',
+  RECEIVERS: 'voucher_config_receivers',
   USERS: 'receipt_user_profiles',
   CURRENT_USER: 'receipt_current_user',
   RECEIPTS: 'receipt_log_records',
+  VOUCHERS: 'voucher_log_records',
   SETTINGS: 'receipt_app_settings'
 };
 
 // User's provided Sheet IDs
 export const CONFIG_SHEET_ID = "1FiWYtzhqsO_7TJ222INNWI8QsgXVJ7lWv83S3bfY7qM";
 export const LOG_SHEET_ID = "1YE4F8WjWT13R_aMOYVmR2NuhaA6FE8ua1cKsdMlttwk";
+export const VOUCHER_SHEET_ID = "1EjB8pdeRTlvu5q9YqltYPfHauy2CLxSWaowkz49zORk";
+
+const DEFAULT_RECEIVERS = [
+  { name: 'บริษัท ยางพาราไทย จำกัด', address: '164 หมู่ที่ 1 ถนนตรัง-สิเกา ตำบลนาเมืองเพชร อำเภอสิเกา จังหวัดตรัง', taxId: '0925549000221' },
+  { name: 'บริษัท นอร์ทอีส รับเบอร์ จำกัด (มหาชน)', address: '398 หมู่ 4 ตำบลโคกม้า อำเภอประโคนชัย จังหวัดบุรีรัมย์ 31140', taxId: '0315555000123' },
+  { name: 'หจก. เพิ่มพูน การเกษตร', address: '12 หมู่ 2 ต.บ้านกรวด อ.บ้านกรวด จ.บุรีรัมย์ 31180', taxId: '0313559000999' }
+];
 
 const DEFAULT_SUPPLIERS = [
   { name: 'บริษัท ศรีสุข พูนทรัพย์ ยางพารา จำกัด', address: '17 หมู่ที่ 14 ตำบลปราสาท อำเภอบ้านกรวด จังหวัดบุรีรัมย์ 31180', taxId: '0315560001234' },
@@ -126,16 +138,75 @@ class StorageService {
     }
   }
 
-  // --- Dynamic Bank Accounts ---
+  // --- Receivers (Payment Voucher จ่ายให้) ---
+  getReceivers() {
+    try {
+      return JSON.parse(localStorage.getItem(KEYS.RECEIVERS)) || DEFAULT_RECEIVERS;
+    } catch {
+      return DEFAULT_RECEIVERS;
+    }
+  }
+
+  addReceiver(receiverInput) {
+    if (!receiverInput) return;
+    const name = typeof receiverInput === 'object' ? receiverInput.name : String(receiverInput).trim();
+    if (!name) return;
+
+    const list = this.getReceivers();
+    const exists = list.some(r => (typeof r === 'object' ? r.name : r).toLowerCase().trim() === name.toLowerCase().trim());
+    if (!exists) {
+      const newRec = typeof receiverInput === 'object' ? receiverInput : { name, address: '', taxId: '' };
+      list.push(newRec);
+      localStorage.setItem(KEYS.RECEIVERS, JSON.stringify(list));
+    }
+  }
+
+  // --- Source Bank Accounts (บริษัทเราเอง - Short code: ALL) ---
+  getSourceBanks() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(KEYS.SOURCE_BANKS));
+      if (raw && Array.isArray(raw) && raw.length > 0) return raw;
+    } catch {}
+    return [
+      'BBL 4143010488',
+      'KTB 6781803115',
+      'SCB 4321625236',
+      'SCB 7732609083',
+      'BAY 1291795056'
+    ];
+  }
+
+  // --- Destination Bank Accounts (ผู้รับเงิน - Short code: PV) ---
+  getDestBanks() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(KEYS.DEST_BANKS));
+      if (raw && Array.isArray(raw) && raw.length > 0) return raw;
+    } catch {}
+    return [
+      { accNo: '6781803115', bankName: 'ธนาคารกรุงไทย นายสมศักดิ์', formatted: '6781803115 (ธนาคารกรุงไทย นายสมศักดิ์)' },
+      { accNo: '4321625236', bankName: 'ธนาคารไทยพาณิชย์ นายสมบูรณ์', formatted: '4321625236 (ธนาคารไทยพาณิชย์ นายสมบูรณ์)' }
+    ];
+  }
+
+  // --- Voucher Bank Accounts (Legacy helper) ---
+  getVoucherBanks() {
+    return this.getSourceBanks();
+  }
+
+  // --- Dynamic Bank Accounts (Receipts - 4 digits) ---
   getBanks() {
     try {
       const raw = JSON.parse(localStorage.getItem(KEYS.BANKS)) || DEFAULT_BANKS;
-      return raw.filter(b => {
-        const s = String(b || '').toLowerCase().trim();
+      const parsed = raw.map(b => {
+        if (typeof b === 'object' && b !== null) return b;
+        return { formatted: String(b), fullValue: String(b) };
+      });
+      return parsed.filter(b => {
+        const s = String(b.formatted || '').toLowerCase().trim();
         return s && !s.includes('bank number') && !s.includes('bank_number') && s !== 'ธนาคาร' && s !== 'เลขที่บัญชี';
       });
     } catch {
-      return DEFAULT_BANKS;
+      return DEFAULT_BANKS.map(b => ({ formatted: b, fullValue: b }));
     }
   }
 
@@ -143,8 +214,12 @@ class StorageService {
     if (!bankString || !bankString.trim()) return;
     const clean = bankString.trim();
     const list = this.getBanks();
-    if (!list.includes(clean)) {
-      list.push(clean);
+    const exists = list.some(b => {
+      const val = typeof b === 'object' && b !== null ? b.fullValue : String(b);
+      return val.toLowerCase().trim() === clean.toLowerCase().trim();
+    });
+    if (!exists) {
+      list.push({ formatted: clean, fullValue: clean });
       localStorage.setItem(KEYS.BANKS, JSON.stringify(list));
     }
   }
@@ -162,6 +237,9 @@ class StorageService {
 
   setCurrentUser(user) {
     if (user) {
+      if (!user.fullName) {
+        user.fullName = (`${user.firstName || ''} ${user.lastName || ''}`).trim();
+      }
       sessionStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
       localStorage.setItem(KEYS.CURRENT_USER, JSON.stringify(user));
       const profiles = this.getUserProfiles();
@@ -175,7 +253,7 @@ class StorageService {
 
   async loginWithPassword(email, password) {
     const settings = this.getSettings();
-    const targetUrl = settings.webhookUrl || settings.cloudflareWorkerUrl;
+    const targetUrl = settings.cloudflareWorkerUrl || settings.webhookUrl;
     if (!targetUrl) return { success: false, message: 'ไม่มี Webhook URL กรุณาตั้งค่าการเชื่อมต่อ' };
 
     const cleanEmail = String(email || '').toLowerCase().trim();
@@ -227,7 +305,7 @@ class StorageService {
         this.setCurrentUser(safeUser);
         return { success: true, user: safeUser };
       } else {
-        return { success: false, message: 'URL เชื่อมต่อเซิร์ฟเวอร์ไม่ถูกต้อง (404 Not Found) หรือยังไม่ได้ตั้งค่า Webapp URL' };
+        return { success: false, message: 'ไม่พบอีเมลนี้ในระบบ' };
       }
     } catch (fallbackErr) {
       console.error('❌ Login fallback failed:', fallbackErr);
@@ -423,6 +501,114 @@ class StorageService {
     return null;
   }
 
+  // --- Payment Voucher (PV) Running Number Generator (YYMMXXXX - 8 Digits with monthly reset) ---
+  generateVoucherNumber(dateObj = new Date()) {
+    const { year2, month2 } = getThaiYearMonthPrefix(dateObj);
+    const prefix = `${year2}${month2}`; // e.g. "6908"
+    const vouchers = this.getVouchers();
+
+    let maxSeq = 0;
+    vouchers.forEach(v => {
+      if (v.voucherNo) {
+        const cleanNo = String(v.voucherNo).replace(/^[^\d]+/, '');
+        if (cleanNo.startsWith(prefix)) {
+          const seqStr = cleanNo.substring(prefix.length);
+          const seq = parseInt(seqStr, 10);
+          if (!isNaN(seq) && seq > maxSeq) {
+            maxSeq = seq;
+          }
+        }
+      }
+    });
+
+    const nextSeq = String(maxSeq + 1).padStart(4, '0');
+    return `${prefix}${nextSeq}`;
+  }
+
+  // --- Vouchers Log ---
+  getVouchers() {
+    try {
+      return JSON.parse(localStorage.getItem(KEYS.VOUCHERS)) || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async saveVoucher(voucherData) {
+    const vouchers = this.getVouchers();
+    
+    // Auto-save Receiver
+    if (voucherData.receiverName) {
+      this.addReceiver(voucherData.receiverName);
+    }
+
+    const existingIndex = vouchers.findIndex(v => v.voucherNo === voucherData.voucherNo);
+    const updatedData = {
+      ...voucherData,
+      status: voucherData.status || 'ปกติ',
+      updatedAt: formatThaiDateTime()
+    };
+
+    if (existingIndex >= 0) {
+      vouchers[existingIndex] = updatedData;
+    } else {
+      vouchers.unshift(updatedData);
+    }
+
+    localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(vouchers));
+
+    // Sync to Google Sheets via Cloudflare Proxy
+    const syncResult = await this.syncVoucherToGoogleSheets(updatedData);
+    console.log('📋 [saveVoucher] Sync result:', syncResult);
+
+    return updatedData;
+  }
+
+  async cancelVoucher(voucherNo, reason) {
+    const vouchers = this.getVouchers();
+    const index = vouchers.findIndex(v => v.voucherNo === voucherNo);
+    if (index >= 0) {
+      vouchers[index].status = 'ยกเลิก';
+      vouchers[index].cancelReason = reason;
+      vouchers[index].cancelledAt = formatThaiDateTime();
+      localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(vouchers));
+      await this.syncVoucherToGoogleSheets(vouchers[index], true);
+      return vouchers[index];
+    }
+    return null;
+  }
+
+  async syncVoucherToGoogleSheets(voucherRecord, isCancel = false) {
+    const settings = this.getSettings();
+    const targetUrl = settings.cloudflareWorkerUrl || settings.webhookUrl;
+
+    if (!targetUrl) {
+      console.warn('⚠️ ยังไม่ได้กรอก Webhook URL — บันทึกเฉพาะ LocalStorage');
+      return { success: false, reason: 'NO_URL' };
+    }
+
+    const payload = {
+      action: isCancel ? 'cancelVoucher' : 'saveVoucher',
+      logSheetId: VOUCHER_SHEET_ID,
+      data: voucherRecord
+    };
+
+    try {
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+      const text = await response.text();
+      let result = {};
+      try { result = JSON.parse(text); } catch { result = { text }; }
+      return { success: true, result };
+    } catch (e) {
+      console.warn('⚠️ Sync Voucher failed:', e.message);
+      return { success: false, error: e.message };
+    }
+  }
+
   // --- App Settings ---
   getSettings() {
     try {
@@ -548,13 +734,26 @@ class StorageService {
           localStorage.setItem(KEYS.PAYMENTS, JSON.stringify(data.payments));
           console.log(`✅ Payments: อัปเดต ${data.payments.length} รายการ`);
         }
-        if (data.banks && Array.isArray(data.banks) && data.banks.length > 0) {
-          const cleanBanks = data.banks.filter(b => {
-            const s = String(b || '').toLowerCase().trim();
-            return s && !s.includes('bank number') && !s.includes('bank_number') && s !== 'ธนาคาร' && s !== 'เลขที่บัญชี';
+        const sourceBanks = (data.receiptBanks && Array.isArray(data.receiptBanks) && data.receiptBanks.length > 0)
+          ? data.receiptBanks 
+          : data.banks;
+
+        if (sourceBanks && Array.isArray(sourceBanks) && sourceBanks.length > 0) {
+          const cleanBanks = sourceBanks.map(b => {
+            if (typeof b === 'object' && b !== null) {
+              const shortLabel = (b.bankAbbr && b.last4)
+                ? `${b.bankAbbr} ${b.last4}`.trim()
+                : (b.formatted || `${b.bankAbbr || ''} ${b.last4 || ''}`.trim());
+              const fullVal = b.sourceBankFormatted || `${b.bankAbbr || ''} ${b.fullAccNum || ''}`.trim();
+              return { formatted: shortLabel, fullValue: fullVal };
+            }
+            return { formatted: String(b || '').trim(), fullValue: String(b || '').trim() };
+          }).filter(item => {
+            const low = item.formatted.toLowerCase();
+            return item.formatted && !low.includes('bank number') && !low.includes('bank_number') && low !== 'ธนาคาร' && low !== 'เลขที่บัญชี';
           });
           localStorage.setItem(KEYS.BANKS, JSON.stringify(cleanBanks));
-          console.log(`✅ Banks: อัปเดต ${cleanBanks.length} รายการ`);
+          console.log(`✅ Banks: อัปเดต ${cleanBanks.length} รายการ (แสดงตัวย่อ + เลขท้าย 4 หลัก)`);
         }
 
         // ⬇️ Parse users and save to localStorage + return fresh data to caller
@@ -592,9 +791,50 @@ class StorageService {
           freshUserProfiles = userProfiles;
           console.log(`✅ Users: อัปเดต ${Object.keys(userProfiles).length} รายการ`, userProfiles);
         }
+        if (data.receipts && Array.isArray(data.receipts)) {
+          localStorage.setItem(KEYS.RECEIPTS, JSON.stringify(data.receipts));
+          console.log(`✅ Receipts: อัปเดตประวัติใบเสร็จ ${data.receipts.length} รายการจาก Google Sheet`);
+        }
+        if (data.receivers && Array.isArray(data.receivers) && data.receivers.length > 0) {
+          localStorage.setItem(KEYS.RECEIVERS, JSON.stringify(data.receivers));
+          console.log(`✅ Receivers: อัปเดตผู้รับเงิน ${data.receivers.length} รายการ`);
+        }
+        const rawBanks = data.voucherBanks || data.banks || [];
+        if (rawBanks && Array.isArray(rawBanks) && rawBanks.length > 0) {
+          // 1. บัญชีต้นทาง (ALL) -> แสดงแบบย่อบนเว็บ (BBL 0488) แต่เก็บเต็มส่ง Sheet (BBL 4143010488)
+          const sourceList = rawBanks.filter(b => b.usage === 'ALL' || b.usage === 'ALL,RC' || b.usage === 'RC,PV,ALL').map(b => {
+            if (typeof b === 'object' && b !== null) {
+              const shortLabel = (b.bankAbbr ? b.bankAbbr + " " : "") + (b.last4 || '');
+              const fullVal = b.sourceBankFormatted || `${b.bankAbbr || ''} ${b.fullAccNum || ''}`.trim();
+              return { formatted: shortLabel.trim(), fullValue: fullVal };
+            }
+            return { formatted: String(b), fullValue: String(b) };
+          });
+          localStorage.setItem(KEYS.SOURCE_BANKS, JSON.stringify(sourceList));
+
+          // 2. บัญชีปลายทาง (PV) -> แสดงเต็มบนเว็บ (เลขที่บัญชีเต็ม)
+          const destList = rawBanks.filter(b => b.usage === 'PV' || b.usage === 'RC,PV' || b.usage === 'ALL,PV').map(b => {
+            if (typeof b === 'object' && b !== null) {
+              const label = `${b.fullAccNum || b.last4 || ''} (${b.bankFullName || ''} ${b.accountHolder || ''})`.trim();
+              return { 
+                accNo: b.fullAccNum || b.last4 || '', 
+                bankName: `${b.bankFullName || ''} ${b.accountHolder || ''}`.trim(),
+                formatted: label
+              };
+            }
+            return { accNo: String(b), bankName: '', formatted: String(b) };
+          });
+          localStorage.setItem(KEYS.DEST_BANKS, JSON.stringify(destList));
+          localStorage.setItem(KEYS.VOUCHER_BANKS, JSON.stringify(sourceList));
+          console.log(`✅ บัญชีธนาคารใบสำคัญจ่ายอัปเดตแล้ว: ต้นทาง (ALL) ${sourceList.length} รายการ, ปลายทาง (PV) ${destList.length} รายการ`);
+        }
+        if (data.vouchers && Array.isArray(data.vouchers)) {
+          localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(data.vouchers));
+          console.log(`✅ Vouchers: อัปเดตประวัติใบสำคัญจ่าย ${data.vouchers.length} รายการจาก Google Sheet`);
+        }
         console.log('🎉 ดึงข้อมูล Config สำเร็จทั้งหมด!');
         console.groupEnd();
-        return { success: true, users: freshUserProfiles };
+        return { success: true, users: freshUserProfiles, receipts: data.receipts || [], vouchers: data.vouchers || [] };
       } else {
         console.error('❌ ดึงข้อมูลไม่ได้, API แจ้ง Error:', data.message);
         // alert('Apps Script แจ้งข้อผิดพลาด: ' + (data.message || 'Unknown Error'));
