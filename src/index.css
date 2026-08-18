@@ -73,14 +73,16 @@
     margin: 6mm 8mm;
   }
 
-  html, body {
+  html, body, #root, #root > div {
     background-color: white !important;
     color: black !important;
     font-family: 'TH Sarabun New', 'THSarabunNew', 'Sarabun', 'Tahoma', sans-serif !important;
     margin: 0 !important;
     padding: 0 !important;
     height: auto !important;
+    width: auto !important;
     overflow: visible !important;
+    display: block !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
@@ -92,6 +94,7 @@
   button,
   header,
   footer,
+  main,
   .modal-overlay,
   .screen-only,
   .sidebar-container,
@@ -109,8 +112,8 @@
 
   .print-page {
     width: 100% !important;
-    height: 275mm !important;
-    max-height: 275mm !important;
+    height: 272mm !important;
+    max-height: 272mm !important;
     padding: 2mm !important;
     box-sizing: border-box !important;
     position: relative !important;
@@ -123,8 +126,7 @@
     border: none !important;
     box-shadow: none !important;
     overflow: hidden !important;
-    display: flex !important;
-    flex-direction: column !important;
+    display: block !important;
   }
 
   .print-page:last-child {

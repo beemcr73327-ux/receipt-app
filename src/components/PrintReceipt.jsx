@@ -167,21 +167,21 @@ function PrintReceiptContent({ receiptData }) {
           background: 'white',
           color: '#000000',
           width: '194mm',
-          height: '275mm',
-          maxHeight: '275mm',
+          height: '272mm',
+          maxHeight: '272mm',
           boxSizing: 'border-box',
           position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
+          display: 'block',
           pageBreakAfter: 'always',
           breakAfter: 'page',
+          pageBreakInside: 'avoid',
+          breakInside: 'avoid',
           margin: '0 auto',
           padding: '2mm',
           overflow: 'hidden'
         }}
       >
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative' }}>
           {/* Watermark กล่องข้อความสีแดง "ยกเลิก" กลางหน้ากระดาษ (ตรง ไม่เอียง) */}
           {isCancelled && (
             <div
