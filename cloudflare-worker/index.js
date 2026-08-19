@@ -17,7 +17,7 @@ export default {
     }
 
     try {
-      const gasWebhookUrl = env.GOOGLE_SHEETS_WEBHOOK || 'https://script.google.com/macros/s/AKfycbwYhD8P2zH2q7nQ-aI3951FfT1HnC0O2b0sM3u_n1p/exec';
+      const gasWebhookUrl = env.GOOGLE_SHEETS_WEBHOOK || 'https://script.google.com/macros/s/AKfycbyg4uurkB24tvAUP33Xaxgb5JXyPZK06yPCTKnQUDIGSj2lidTmi-T8qx3MJ7ob938d/exec';
 
       if (request.method === 'POST') {
         const rawText = await request.text();

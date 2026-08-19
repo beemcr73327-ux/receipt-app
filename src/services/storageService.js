@@ -63,7 +63,7 @@ const DEFAULT_BANKS = [
 ];
 
 const DEFAULT_SETTINGS = {
-  webhookUrl: 'https://script.google.com/macros/s/AKfycbwYhD8P2zH2q7nQ-aI3951FfT1HnC0O2b0sM3u_n1p/exec',
+  webhookUrl: 'https://script.google.com/macros/s/AKfycbyg4uurkB24tvAUP33Xaxgb5JXyPZK06yPCTKnQUDIGSj2lidTmi-T8qx3MJ7ob938d/exec',
   cloudflareWorkerUrl: 'https://receipt-backend-worker.beemcr73327.workers.dev/',
   configSheetId: CONFIG_SHEET_ID,
   logSheetId: LOG_SHEET_ID
