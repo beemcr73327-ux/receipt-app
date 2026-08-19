@@ -10,6 +10,7 @@ export default function SearchableSelect({
   allowCustom = true,
   showAllOnFocus = false,
   disabled = false,
+  maxLength,
   className = ''
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -109,6 +110,7 @@ export default function SearchableSelect({
           type="text"
           value={query}
           disabled={disabled}
+          maxLength={maxLength}
           onChange={handleInputChange}
           onBlur={handleBlur}
           onFocus={(e) => {

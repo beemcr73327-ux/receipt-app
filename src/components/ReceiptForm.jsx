@@ -1,4 +1,4 @@
-import React, { useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import {
   Plus,
   FilePlus,
@@ -20,6 +20,8 @@ import { formatThaiDate, formatThaiDateTime, getTodayISO, isoToThaiDate, formatP
 import { storageService } from '../services/storageService';
 
 const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, onSaveSuccess, onPrintTrigger, onBackToHistory, onClearViewData, onReqNewForm }, ref) => {
+  const prevViewReceiptDataRef = useRef(undefined);
+
   // Form State
   const [receiptNo, setReceiptNo] = useState('');
   const [dateIso, setDateIso] = useState(getTodayISO());
@@ -109,72 +111,80 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
   };
 
   useEffect(() => {
-    if (viewReceiptData) {
-      const cleanStr = (val) => String(val || '').replace(/^'/, '').trim();
-      
-      setReceiptNo(cleanStr(viewReceiptData.receiptNo));
-      setDateIso(viewReceiptData.dateIso || getTodayISO());
-      setDateThai(cleanStr(viewReceiptData.dateThai) || formatThaiDate());
-      setBuyerName(cleanStr(viewReceiptData.buyerName));
-      setBuyerAddress(cleanStr(viewReceiptData.buyerAddress));
-      setBuyerTaxId(cleanStr(viewReceiptData.buyerTaxId || viewReceiptData.taxId));
-      const normalizedItems = (viewReceiptData.items || []).map(item => {
-        let title = cleanStr(item.title || item.itemTitle);
-        let details = cleanStr(item.details || item.itemDetails);
-        if (!details && title.includes('(') && title.endsWith(')')) {
-          const m = title.match(/^(.*?)\s*\((.*?)\)$/);
-          if (m) {
-            title = m[1].trim();
-            details = m[2].trim();
+    if (prevViewReceiptDataRef.current !== viewReceiptData) {
+      if (viewReceiptData) {
+        const cleanStr = (val) => String(val || '').replace(/^'/, '').trim();
+        
+        setReceiptNo(cleanStr(viewReceiptData.receiptNo));
+        setDateIso(viewReceiptData.dateIso || getTodayISO());
+        setDateThai(cleanStr(viewReceiptData.dateThai) || formatThaiDate());
+        setBuyerName(cleanStr(viewReceiptData.buyerName));
+        setBuyerAddress(cleanStr(viewReceiptData.buyerAddress));
+        setBuyerTaxId(cleanStr(viewReceiptData.buyerTaxId || viewReceiptData.taxId));
+        const normalizedItems = (viewReceiptData.items || []).map(item => {
+          let title = cleanStr(item.title || item.itemTitle);
+          let details = cleanStr(item.details || item.itemDetails);
+          if (!details && title.includes('(') && title.endsWith(')')) {
+            const m = title.match(/^(.*?)\s*\((.*?)\)$/);
+            if (m) {
+              title = m[1].trim();
+              details = m[2].trim();
+            }
+          }
+          const q = Number(item.quantity || 0);
+          const p = Number(item.unitPrice || 0);
+          let drcFactor = 1;
+          if (item.drc && item.drc !== '-') {
+            const cleanDrc = parseFloat(item.drc.toString().replace('%', ''));
+            if (!isNaN(cleanDrc)) drcFactor = cleanDrc / 100;
+          }
+          const subtotal = item.subtotal || (q * p * drcFactor);
+          const discVal = Number(item.discountAmount || 0);
+          const netAmt = item.amount !== undefined && item.amount !== null && Number(item.amount) > 0
+            ? Number(item.amount)
+            : Math.max(0, subtotal - discVal);
+
+          return {
+            ...item,
+            title,
+            details,
+            subtotal,
+            discountAmount: discVal,
+            amount: netAmt
+          };
+        });
+
+        setItems(normalizedItems);
+        const rawPayMethod = cleanStr(viewReceiptData.paymentMethod) || 'เงินโอน';
+        let normPayMethod = rawPayMethod;
+        let rawBank = cleanStr(viewReceiptData.bankDetails);
+
+        if (rawPayMethod !== 'เงินสด' && !rawPayMethod.startsWith('เช็ค') && rawPayMethod !== 'เช็ค') {
+          normPayMethod = 'เงินโอน';
+          if (!rawBank) {
+            rawBank = rawPayMethod; // Fallback to paymentMethod for old records
           }
         }
-        const q = Number(item.quantity || 0);
-        const p = Number(item.unitPrice || 0);
-        let drcFactor = 1;
-        if (item.drc && item.drc !== '-') {
-          const cleanDrc = parseFloat(item.drc.toString().replace('%', ''));
-          if (!isNaN(cleanDrc)) drcFactor = cleanDrc / 100;
-        }
-        const subtotal = item.subtotal || (q * p * drcFactor);
-        const discVal = Number(item.discountAmount || 0);
-        const netAmt = item.amount !== undefined && item.amount !== null && Number(item.amount) > 0
-          ? Number(item.amount)
-          : Math.max(0, subtotal - discVal);
 
-        return {
-          ...item,
-          title,
-          details,
-          subtotal,
-          discountAmount: discVal,
-          amount: netAmt
-        };
-      });
-
-      setItems(normalizedItems);
-      const rawPayMethod = cleanStr(viewReceiptData.paymentMethod) || 'เงินโอน';
-      let normPayMethod = rawPayMethod;
-      let rawBank = cleanStr(viewReceiptData.bankDetails);
-
-      if (rawPayMethod !== 'เงินสด' && !rawPayMethod.startsWith('เช็ค') && rawPayMethod !== 'เช็ค') {
-        normPayMethod = 'เงินโอน';
-        if (!rawBank) {
-          rawBank = rawPayMethod; // Fallback to paymentMethod for old records
-        }
+        setPaymentMethod(normPayMethod);
+        setBankDetails(rawBank);
+        setBankDetailsDisplay(getBankDisplayLabel(rawBank));
+        setChequeNo(cleanStr(viewReceiptData.chequeNo));
+        setPaymentDateIso(viewReceiptData.paymentDateIso || getTodayISO());
+        setPaymentDateThai(cleanStr(viewReceiptData.paymentDateThai) || formatThaiDate());
+        setNotes(cleanStr(viewReceiptData.notes));
+        setIsSaved(true);
+        setIsSaving(false);
+        setStatusMessage(null);
+      } else {
+        handleNewFormDirect();
       }
-
-      setPaymentMethod(normPayMethod);
-      setBankDetails(rawBank);
-      setBankDetailsDisplay(getBankDisplayLabel(rawBank));
-      setChequeNo(cleanStr(viewReceiptData.chequeNo));
-      setPaymentDateIso(viewReceiptData.paymentDateIso || getTodayISO());
-      setPaymentDateThai(cleanStr(viewReceiptData.paymentDateThai) || formatThaiDate());
-      setNotes(cleanStr(viewReceiptData.notes));
-      setIsSaved(true);
-      setIsSaving(false);
-      setStatusMessage(null);
+      prevViewReceiptDataRef.current = viewReceiptData;
     } else {
-      handleNewForm();
+      if (viewReceiptData) {
+        const rawBank = String(viewReceiptData.bankDetails || '').replace(/^'/, '').trim();
+        setBankDetailsDisplay(getBankDisplayLabel(rawBank));
+      }
     }
   }, [viewReceiptData, banks]);
 
