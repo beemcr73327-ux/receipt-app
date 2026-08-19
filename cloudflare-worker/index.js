@@ -17,7 +17,12 @@ export default {
     }
 
     try {
-      const gasWebhookUrl = env.GOOGLE_SHEETS_WEBHOOK || 'https://script.google.com/macros/s/AKfycbyg4uurkB24tvAUP33Xaxgb5JXyPZK06yPCTKnQUDIGSj2lidTmi-T8qx3MJ7ob938d/exec';
+      const OLD_GAS_URL = 'AKfycbwYhD8P2zH2q7nQ-aI3951FfT1HnC0O2b0sM3u_n1p';
+      const NEW_GAS_URL = 'https://script.google.com/macros/s/AKfycbyg4uurkB24tvAUP33Xaxgb5JXyPZK06yPCTKnQUDIGSj2lidTmi-T8qx3MJ7ob938d/exec';
+
+      let gasWebhookUrl = (env.GOOGLE_SHEETS_WEBHOOK && !env.GOOGLE_SHEETS_WEBHOOK.includes(OLD_GAS_URL))
+        ? env.GOOGLE_SHEETS_WEBHOOK.trim()
+        : NEW_GAS_URL;
 
       if (request.method === 'POST') {
         const rawText = await request.text();
