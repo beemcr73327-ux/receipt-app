@@ -347,9 +347,15 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
   const canPrintInForm = isSaved && !viewReceiptData;
 
   const handlePrint = () => {
+    console.log('🖨️ [handlePrint] clicked. canPrintInForm:', canPrintInForm);
     if (!canPrintInForm) return;
-    const payload = buildPayload();
-    onPrintTrigger(payload);
+    try {
+      const payload = buildPayload();
+      console.log('🖨️ [handlePrint] payload built successfully:', payload);
+      onPrintTrigger(payload);
+    } catch (e) {
+      console.error('🖨️ [handlePrint] Error building payload or triggering print:', e);
+    }
   };
 
   // Expose methods via ref
