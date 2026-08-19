@@ -11,14 +11,10 @@ export function openPrintInNewTab(receiptData) {
   console.log('🖨️ [openPrintInNewTab] called with data:', receiptData);
   if (!receiptData) return;
   try {
-    // Wait for React render to complete, then wait one more frame for paint
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        console.log('🖨️ [openPrintInNewTab] triggering window.print()');
-        window.focus();
-        window.print();
-      }, 250);
-    });
+    setTimeout(() => {
+      console.log('🖨️ [openPrintInNewTab] triggering window.print()');
+      window.print();
+    }, 50);
   } catch (e) {
     console.error('Print error:', e);
   }
