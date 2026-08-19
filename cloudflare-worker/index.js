@@ -17,6 +17,8 @@ export default {
     }
 
     try {
+      const gasWebhookUrl = env.GOOGLE_SHEETS_WEBHOOK || 'https://script.google.com/macros/s/AKfycbwYhD8P2zH2q7nQ-aI3951FfT1HnC0O2b0sM3u_n1p/exec';
+
       if (request.method === 'POST') {
         const rawText = await request.text();
         let body = {};
@@ -27,23 +29,30 @@ export default {
         }
         
         if (body.action === 'login') {
-           let usersList = [];
+           const reqEmail = String(body.email || '').toLowerCase().trim();
+           const reqPassword = String(body.password || '').trim();
 
-           // 1. Try to fetch fresh user list from Google Sheets Webhook
-           if (env.GOOGLE_SHEETS_WEBHOOK) {
+           // 1. Forward login request directly to Google Apps Script doPost (handleLogin)
+           if (gasWebhookUrl) {
               try {
-                 const res = await fetch(env.GOOGLE_SHEETS_WEBHOOK, { method: 'GET', redirect: 'follow' });
+                 const res = await fetch(gasWebhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ action: 'login', email: reqEmail, password: reqPassword })
+                 });
                  const dataText = await res.text();
                  const dataJson = JSON.parse(dataText);
-                 if (dataJson && dataJson.users && Array.isArray(dataJson.users)) {
-                    usersList = dataJson.users;
+                 if (dataJson && (dataJson.status === 'success' || dataJson.status === 'error')) {
+                    return new Response(JSON.stringify(dataJson), {
+                       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                    });
                  }
               } catch (e) {
-                 console.warn('GAS fetch failed:', e.message);
+                 console.warn('GAS POST login failed:', e.message);
               }
            }
 
-           // 2. Default Admin Fallbacks (Matches user's Admin emails)
+           // 2. Default Admin Fallbacks (Emergency backup if GAS is unreachable)
            const defaultAdmins = [
               {
                  firstName: 'อรรถเดช',
@@ -65,41 +74,25 @@ export default {
               }
            ];
 
-           const reqEmail = String(body.email || '').toLowerCase().trim();
-           const reqPassword = String(body.password || '').trim();
-
-           let user = usersList.find(u => u && u.email && String(u.email).toLowerCase().trim() === reqEmail);
-           
-           // Fallback to default Admin if not found in fetched GAS list
-           if (!user) {
-              user = defaultAdmins.find(a => a.email.toLowerCase() === reqEmail);
-           }
-
-           if (user) {
-              if (user.status === 'Blocked') {
-                 return new Response(JSON.stringify({ status: 'error', message: 'บัญชีของคุณถูกระงับการใช้งาน' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-              }
-              if (user.status === 'Pending') {
-                 return new Response(JSON.stringify({ status: 'error', message: 'บัญชีอยู่ระหว่างรอการอนุมัติจาก Admin' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-              }
-
-              const expectedPassword = String(user.rawPassword || '').trim();
+           const adminUser = defaultAdmins.find(a => a.email.toLowerCase() === reqEmail);
+           if (adminUser) {
+              const expectedPassword = String(adminUser.rawPassword || '').trim();
               if (!expectedPassword || expectedPassword === reqPassword) {
-                 const safeUser = { ...user };
+                 const safeUser = { ...adminUser };
                  delete safeUser.rawPassword;
                  return new Response(JSON.stringify({ status: 'success', user: safeUser }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
               } else {
                  return new Response(JSON.stringify({ status: 'error', message: 'รหัสผ่านไม่ถูกต้อง' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
               }
-           } else {
-              return new Response(JSON.stringify({ status: 'error', message: 'ไม่พบอีเมลนี้ในระบบ' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
            }
+
+           return new Response(JSON.stringify({ status: 'error', message: 'ไม่พบอีเมลนี้ในระบบ' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
         
         let gasResponseText = '';
-        if (env.GOOGLE_SHEETS_WEBHOOK) {
+        if (gasWebhookUrl) {
           try {
-             const res = await fetch(env.GOOGLE_SHEETS_WEBHOOK, {
+             const res = await fetch(gasWebhookUrl, {
                method: 'POST',
                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                body: rawText
@@ -140,12 +133,13 @@ export default {
                   email: 'beemcr73327@gmail.com',
                   status: 'Approved'
                }
-            ]
+            ],
+            receipts: []
          };
 
-         if (env.GOOGLE_SHEETS_WEBHOOK) {
+         if (gasWebhookUrl) {
             try {
-               const res = await fetch(env.GOOGLE_SHEETS_WEBHOOK, {
+               const res = await fetch(gasWebhookUrl, {
                   method: 'GET',
                   redirect: 'follow'
                });

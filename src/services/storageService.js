@@ -168,12 +168,33 @@ class StorageService {
       if (raw && Array.isArray(raw) && raw.length > 0) return raw;
     } catch {}
     return [
-      'BBL 4143010488',
-      'KTB 6781803115',
-      'SCB 4321625236',
-      'SCB 7732609083',
-      'BAY 1291795056'
+      { formatted: 'BBL 0488', fullValue: 'BBL 4143010488', bankAbbr: 'BBL', fullAccNum: '4143010488', last4: '0488', accountHolder: 'บจก. ศรีสุข พูนทรัพย์ ยางพารา จำกัด' },
+      { formatted: 'KTB 3115', fullValue: 'KTB 6781803115', bankAbbr: 'KTB', fullAccNum: '6781803115', last4: '3115', accountHolder: 'บจก. ศรีสุข พูนทรัพย์ ยางพารา จำกัด' },
+      { formatted: 'SCB 5236', fullValue: 'SCB 4321625236', bankAbbr: 'SCB', fullAccNum: '4321625236', last4: '5236', accountHolder: 'บจก. ศรีสุข พูนทรัพย์ ยางพารา จำกัด' },
+      { formatted: 'SCB 9083', fullValue: 'SCB 7732609083', bankAbbr: 'SCB', fullAccNum: '7732609083', last4: '9083', accountHolder: 'บจก. ศรีสุข พูนทรัพย์ ยางพารา จำกัด' },
+      { formatted: 'BAY 5056', fullValue: 'BAY 1291795056', bankAbbr: 'BAY', fullAccNum: '1291795056', last4: '5056', accountHolder: 'บจก. ศรีสุข พูนทรัพย์ ยางพารา จำกัด' }
     ];
+  }
+
+  getSourceBankDetails(sourceVal) {
+    if (!sourceVal) return null;
+    const clean = String(sourceVal).trim().toLowerCase();
+    const cleanDigits = String(sourceVal).replace(/\D/g, '');
+    const list = this.getSourceBanks();
+
+    const found = list.find(b => {
+      if (typeof b === 'object' && b !== null) {
+        const fVal = String(b.fullValue || '').toLowerCase();
+        const fmt = String(b.formatted || '').toLowerCase();
+        const acc = String(b.fullAccNum || '').replace(/\D/g, '');
+        const l4 = String(b.last4 || '');
+        return fVal === clean || fmt === clean || (cleanDigits && (acc === cleanDigits || acc.endsWith(cleanDigits) || cleanDigits.endsWith(acc))) || (l4 && clean.includes(l4));
+      }
+      return String(b).toLowerCase() === clean;
+    });
+
+    if (found && typeof found === 'object') return found;
+    return null;
   }
 
   // --- Destination Bank Accounts (ผู้รับเงิน - Short code: PV) ---
@@ -186,6 +207,22 @@ class StorageService {
       { accNo: '6781803115', bankName: 'ธนาคารกรุงไทย นายสมศักดิ์', formatted: '6781803115 (ธนาคารกรุงไทย นายสมศักดิ์)' },
       { accNo: '4321625236', bankName: 'ธนาคารไทยพาณิชย์ นายสมบูรณ์', formatted: '4321625236 (ธนาคารไทยพาณิชย์ นายสมบูรณ์)' }
     ];
+  }
+
+  addDestBank(accNo, bankName) {
+    if (!accNo || !accNo.trim()) return;
+    const cleanAcc = accNo.trim();
+    const cleanBank = String(bankName || '').trim();
+    const list = this.getDestBanks();
+    const exists = list.some(b => (b.accNo || String(b)).toLowerCase().trim() === cleanAcc.toLowerCase());
+    if (!exists) {
+      list.push({
+        accNo: cleanAcc,
+        bankName: cleanBank,
+        formatted: `${cleanAcc} (${cleanBank})`.trim()
+      });
+      localStorage.setItem(KEYS.DEST_BANKS, JSON.stringify(list));
+    }
   }
 
   // --- Voucher Bank Accounts (Legacy helper) ---
@@ -542,6 +579,11 @@ class StorageService {
       this.addReceiver(voucherData.receiverName);
     }
 
+    // Auto-save Destination Bank
+    if (voucherData.chequeOrDestAcc && voucherData.paymentMethod !== 'เงินสด' && voucherData.paymentMethod !== 'เช็ค') {
+      this.addDestBank(voucherData.chequeOrDestAcc, voucherData.destBank);
+    }
+
     const existingIndex = vouchers.findIndex(v => v.voucherNo === voucherData.voucherNo);
     const updatedData = {
       ...voucherData,
@@ -756,6 +798,27 @@ class StorageService {
           console.log(`✅ Banks: อัปเดต ${cleanBanks.length} รายการ (แสดงตัวย่อ + เลขท้าย 4 หลัก)`);
         }
 
+        const vBanks = data.voucherBanks || data.banks;
+        if (vBanks && Array.isArray(vBanks) && vBanks.length > 0) {
+          const destList = vBanks
+            .filter(b => typeof b === 'object' && b.usage === 'PV')
+            .map(b => {
+              const accNo = (b.fullAccNum || b.formatted || '').trim();
+              const bankName = (b.destBankName || (b.bankFullName ? `${b.bankFullName} ${b.accountHolder || ''}` : b.accountHolder || '')).trim();
+              return {
+                accNo: accNo,
+                bankName: bankName,
+                formatted: `${accNo} (${bankName})`.trim()
+              };
+            })
+            .filter(b => b.accNo);
+
+          if (destList.length > 0) {
+            localStorage.setItem(KEYS.DEST_BANKS, JSON.stringify(destList));
+            console.log(`✅ Dest Banks (PV): อัปเดต ${destList.length} รายการ (เฉพาะ Col F = PV)`);
+          }
+        }
+
         // ⬇️ Parse users and save to localStorage + return fresh data to caller
         let freshUserProfiles = null;
         if (data.users && Array.isArray(data.users) && data.users.length > 0) {
@@ -806,7 +869,15 @@ class StorageService {
             if (typeof b === 'object' && b !== null) {
               const shortLabel = (b.bankAbbr ? b.bankAbbr + " " : "") + (b.last4 || '');
               const fullVal = b.sourceBankFormatted || `${b.bankAbbr || ''} ${b.fullAccNum || ''}`.trim();
-              return { formatted: shortLabel.trim(), fullValue: fullVal };
+              return { 
+                formatted: shortLabel.trim(), 
+                fullValue: fullVal,
+                bankAbbr: b.bankAbbr || '',
+                fullAccNum: b.fullAccNum || '',
+                last4: b.last4 || '',
+                accountHolder: b.accountHolder || '',
+                bankFullName: b.bankFullName || ''
+              };
             }
             return { formatted: String(b), fullValue: String(b) };
           });
