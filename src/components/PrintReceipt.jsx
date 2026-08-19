@@ -11,12 +11,81 @@ export function openPrintInNewTab(receiptData) {
   console.log('🖨️ [openPrintInNewTab] called with data:', receiptData);
   if (!receiptData) return;
   try {
+    const htmlContent = ReactDOMServer.renderToString(
+      <PrintReceiptContent receiptData={receiptData} />
+    );
+
+    let iframe = document.getElementById('receipt-print-iframe');
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'receipt-print-iframe';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+    }
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>พิมพ์ใบเสร็จรับเงิน - ${receiptData.receiptNo || ''}</title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 6mm 8mm;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              background: white;
+              color: black;
+              font-family: 'TH Sarabun New', 'THSarabunNew', 'Sarabun', 'Tahoma', sans-serif;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .print-page {
+              width: 194mm;
+              height: 272mm;
+              max-height: 272mm;
+              padding: 2mm;
+              box-sizing: border-box;
+              position: relative;
+              page-break-after: always;
+              break-after: page;
+              page-break-inside: avoid;
+              break-inside: avoid;
+              color: #000;
+              background: white;
+              margin: 0 auto;
+              overflow: hidden;
+            }
+            .print-page:last-child {
+              page-break-after: avoid;
+              break-after: avoid;
+            }
+          </style>
+        </head>
+        <body>
+          ${htmlContent}
+        </body>
+      </html>
+    `);
+    doc.close();
+
     setTimeout(() => {
-      console.log('🖨️ [openPrintInNewTab] triggering window.print()');
-      window.print();
-    }, 50);
+      console.log('🖨️ [openPrintInNewTab] triggering iframe print()');
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 100);
   } catch (e) {
-    console.error('Print error:', e);
+    console.error('Print iframe error, fallback to window.print:', e);
+    window.print();
   }
 }
 
