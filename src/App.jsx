@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import { AlertTriangle } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import AuthModal from './components/AuthModal';
 import ReceiptForm from './components/ReceiptForm';
 import PrintReceipt, { openPrintInNewTab } from './components/PrintReceipt';
+import PrintVoucher, { openVoucherPrintDialog } from './components/PrintVoucher';
 import ReceiptHistoryModal from './components/ReceiptHistoryModal';
+import VoucherForm from './components/VoucherForm';
+import VoucherHistoryModal from './components/VoucherHistoryModal';
 import SettingsModal from './components/SettingsModal';
 import UserManagementModal from './components/UserManagementModal';
 import { storageService } from './services/storageService';
@@ -13,14 +17,18 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
-  // Navigation Active Page ('history' | 'create_receipt' | 'user_management' | 'settings')
+  // Navigation Active Page ('history' | 'create_receipt' | 'voucher_history' | 'create_voucher' | 'user_management' | 'settings')
   const [activePage, setActivePage] = useState('history');
   
   // Selected receipt for viewing details in read-only mode
   const [viewReceiptData, setViewReceiptData] = useState(null);
+
+  // Selected voucher for viewing details in read-only mode
+  const [viewVoucherData, setViewVoucherData] = useState(null);
   
   // Print Payload Data
   const [printReceiptData, setPrintReceiptData] = useState(null);
+  const [printVoucherData, setPrintVoucherData] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Dirty Form Navigation Guard State
@@ -28,6 +36,7 @@ export default function App() {
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   const receiptFormRef = useRef(null);
+  const voucherFormRef = useRef(null);
 
   useEffect(() => {
     // Initial mount: load current user from storage
@@ -90,17 +99,23 @@ export default function App() {
     if (activePage === 'create_receipt' && receiptFormRef.current?.getIsDirty) {
       return receiptFormRef.current.getIsDirty();
     }
+    if (activePage === 'create_voucher' && voucherFormRef.current?.getIsDirty) {
+      return voucherFormRef.current.getIsDirty();
+    }
     return false;
   };
 
   const handleSafeNavigate = (targetPageKey) => {
-    if (targetPageKey === activePage && activePage !== 'create_receipt') return;
+    if (targetPageKey === activePage && activePage !== 'create_receipt' && activePage !== 'create_voucher') return;
     if (isFormDirty()) {
       setPendingTarget({ type: 'navigate', pageKey: targetPageKey });
       setShowLeaveModal(true);
     } else {
       if (targetPageKey === 'create_receipt') {
         setViewReceiptData(null);
+      }
+      if (targetPageKey === 'create_voucher') {
+        setViewVoucherData(null);
       }
       setActivePage(targetPageKey);
     }
@@ -124,6 +139,15 @@ export default function App() {
     }
   };
 
+  const handleReqNewVoucherForm = () => {
+    if (isFormDirty()) {
+      setPendingTarget({ type: 'new_voucher_form' });
+      setShowLeaveModal(true);
+    } else {
+      voucherFormRef.current?.handleNewFormDirect?.();
+    }
+  };
+
   const confirmLeaveAndNavigate = () => {
     setShowLeaveModal(false);
     if (!pendingTarget) return;
@@ -133,19 +157,37 @@ export default function App() {
         setViewReceiptData(null);
         receiptFormRef.current?.handleNewFormDirect?.();
       }
+      if (pendingTarget.pageKey === 'create_voucher') {
+        setViewVoucherData(null);
+        voucherFormRef.current?.handleNewFormDirect?.();
+      }
       setActivePage(pendingTarget.pageKey);
     } else if (pendingTarget.type === 'logout') {
       handleLogout();
     } else if (pendingTarget.type === 'new_form') {
       setViewReceiptData(null);
       receiptFormRef.current?.handleNewFormDirect?.();
+    } else if (pendingTarget.type === 'new_voucher_form') {
+      setViewVoucherData(null);
+      voucherFormRef.current?.handleNewFormDirect?.();
     }
     setPendingTarget(null);
   };
 
   const handleReceiptSelectForPrint = (receiptRecord) => {
-    setPrintReceiptData(receiptRecord);
+    flushSync(() => {
+      setPrintReceiptData(receiptRecord);
+      setPrintVoucherData(null);
+    });
     openPrintInNewTab(receiptRecord);
+  };
+
+  const handleVoucherSelectForPrint = (voucherRecord) => {
+    flushSync(() => {
+      setPrintVoucherData(voucherRecord);
+      setPrintReceiptData(null);
+    });
+    openVoucherPrintDialog(voucherRecord);
   };
 
   return (
@@ -163,9 +205,9 @@ export default function App() {
         />
       )}
 
-      {/* Main 2-Column LivingOS Layout */}
+      {/* Logged in Application Layout */}
       {currentUser && (
-        <div className="flex-1 flex overflow-hidden h-full">
+        <div className="flex-1 flex overflow-hidden">
           
           {/* Left Column: Sidebar Accordion Tree Menu */}
           <Sidebar
@@ -187,10 +229,15 @@ export default function App() {
                 refreshTrigger={refreshTrigger}
                 onSaveSuccess={(savedData) => {
                   setPrintReceiptData(savedData);
+                  setPrintVoucherData(null);
                   setRefreshTrigger(prev => prev + 1);
                 }}
                 onPrintTrigger={(payloadData) => {
-                  setPrintReceiptData(payloadData);
+                  flushSync(() => {
+                    setPrintReceiptData(payloadData);
+                    setPrintVoucherData(null);
+                  });
+                  openPrintInNewTab(payloadData);
                 }}
                 onBackToHistory={() => handleSafeNavigate('history')}
                 onClearViewData={() => setViewReceiptData(null)}
@@ -206,6 +253,42 @@ export default function App() {
                   setActivePage('create_receipt');
                 }}
                 onSelectReceipt={handleReceiptSelectForPrint}
+                onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+              />
+            )}
+
+            {activePage === 'create_voucher' && (
+              <VoucherForm
+                ref={voucherFormRef}
+                currentUser={currentUser}
+                viewVoucherData={viewVoucherData}
+                refreshTrigger={refreshTrigger}
+                onSaveSuccess={(savedData) => {
+                  setPrintVoucherData(savedData);
+                  setPrintReceiptData(null);
+                  setRefreshTrigger(prev => prev + 1);
+                }}
+                onPrintTrigger={(payloadData) => {
+                  flushSync(() => {
+                    setPrintVoucherData(payloadData);
+                    setPrintReceiptData(null);
+                  });
+                  openVoucherPrintDialog(payloadData);
+                }}
+                onBackToHistory={() => handleSafeNavigate('voucher_history')}
+                onClearViewData={() => setViewVoucherData(null)}
+                onReqNewForm={handleReqNewVoucherForm}
+              />
+            )}
+
+            {activePage === 'voucher_history' && (
+              <VoucherHistoryModal
+                onCreateNewVoucher={() => handleSafeNavigate('create_voucher')}
+                onViewVoucherDetails={(record) => {
+                  setViewVoucherData(record);
+                  setActivePage('create_voucher');
+                }}
+                onSelectVoucher={handleVoucherSelectForPrint}
                 onRefresh={() => setRefreshTrigger(prev => prev + 1)}
               />
             )}
@@ -263,6 +346,7 @@ export default function App() {
       {/* Print Container (ONLY visible when window.print() is called) */}
       <div className="print-only">
         <PrintReceipt receiptData={printReceiptData} />
+        <PrintVoucher voucherData={printVoucherData} />
       </div>
 
     </div>
