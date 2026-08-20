@@ -7,9 +7,15 @@ import { formatThaiDateTime, formatPeriod, normalizeThaiDate } from '../utils/da
  * Trigger print dialog directly from the main page using a hidden iframe.
  * No new browser tabs will be opened; the native print dialog pops up directly.
  */
-export function openPrintInNewTab() {
+export function openPrintInNewTab(receiptData) {
+  if (!receiptData) return;
   try {
-    window.print();
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        window.focus();
+        window.print();
+      }, 150);
+    });
   } catch (e) {
     console.error('Print error:', e);
   }
