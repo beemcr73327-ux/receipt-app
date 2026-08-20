@@ -538,6 +538,17 @@ class StorageService {
     return null;
   }
 
+  updateReceiptPrintTimestamp(receiptNo, timestampStr = formatThaiDateTime()) {
+    const receipts = this.getReceipts();
+    const index = receipts.findIndex(r => r.receiptNo === receiptNo);
+    if (index >= 0) {
+      receipts[index].printedTimestamp = timestampStr;
+      localStorage.setItem(KEYS.RECEIPTS, JSON.stringify(receipts));
+      return receipts[index];
+    }
+    return null;
+  }
+
   // --- Payment Voucher (PV) Running Number Generator (YYMMXXXX - 8 Digits with monthly reset) ---
   generateVoucherNumber(dateObj = new Date()) {
     const { year2, month2 } = getThaiYearMonthPrefix(dateObj);
@@ -615,6 +626,17 @@ class StorageService {
       vouchers[index].cancelledAt = formatThaiDateTime();
       localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(vouchers));
       await this.syncVoucherToGoogleSheets(vouchers[index], true);
+      return vouchers[index];
+    }
+    return null;
+  }
+
+  updateVoucherPrintTimestamp(voucherNo, timestampStr = formatThaiDateTime()) {
+    const vouchers = this.getVouchers();
+    const index = vouchers.findIndex(v => v.voucherNo === voucherNo);
+    if (index >= 0) {
+      vouchers[index].printedTimestamp = timestampStr;
+      localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(vouchers));
       return vouchers[index];
     }
     return null;

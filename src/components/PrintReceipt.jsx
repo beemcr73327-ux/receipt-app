@@ -59,8 +59,9 @@ function PrintReceiptContent({ receiptData }) {
   const isCancelled = receiptData?.status === 'ยกเลิก' || 
                       String(receiptData?.status || '').trim() === 'ยกเลิก' ||
                       Boolean(receiptData?.cancelReason && String(receiptData?.cancelReason).trim().length > 0);
-  const rawTs = receiptData?.printedTimestamp || receiptData?.updatedAt || '';
-  const printedTimestamp = rawTs ? formatThaiDateTime(rawTs) : formatThaiDateTime();
+  const printedTimestamp = (receiptData?.forceTimestamp && String(receiptData.forceTimestamp).trim())
+    ? formatThaiDateTime(receiptData.forceTimestamp)
+    : formatThaiDateTime();
   const tsParts = printedTimestamp.includes(' ') ? printedTimestamp.split(' ') : [printedTimestamp, ''];
   const printDateVal = normalizeThaiDate(tsParts[0] || dateThai);
   const printTimeVal = tsParts[1] || '';

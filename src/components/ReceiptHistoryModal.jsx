@@ -8,6 +8,7 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
   const [cancelModalReceipt, setCancelModalReceipt] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
   const [error, setError] = useState('');
+  const [localRefresh, setLocalRefresh] = useState(0);
 
   const cleanStr = (val) => String(val || '').replace(/^'/, '').trim();
   const rawReceipts = storageService.getReceipts();
@@ -193,15 +194,17 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
                             )}
                           </td>
                           <td className="py-3 px-3 text-center whitespace-nowrap text-[11px] text-slate-500 font-medium">
-                            {isCancelled
-                              ? (r.cancelledAt ? formatThaiDateTime(r.cancelledAt) : r.updatedAt ? formatThaiDateTime(r.updatedAt) : '-')
-                              : (r.updatedAt ? formatThaiDateTime(r.updatedAt) : r.printedTimestamp ? formatThaiDateTime(r.printedTimestamp) : '-')}
+                            {r.printedTimestamp ? formatThaiDateTime(r.printedTimestamp) : '-'}
                           </td>
                           <td className="py-3 px-3 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1.5">
                               <button
                                 onClick={() => {
-                                  onSelectReceipt(r);
+                                  const nowTs = formatThaiDateTime();
+                                  storageService.updateReceiptPrintTimestamp(r.receiptNo, nowTs);
+                                  setLocalRefresh(prev => prev + 1);
+                                  onSelectReceipt({ ...r, printedTimestamp: nowTs });
+                                  if (onRefresh) onRefresh();
                                 }}
                                 className={`p-1.5 rounded-lg transition border bg-slate-100 hover:bg-blue-50 text-blue-600 border-slate-200 cursor-pointer`}
                                 title="พิมพ์ใบเสร็จ"

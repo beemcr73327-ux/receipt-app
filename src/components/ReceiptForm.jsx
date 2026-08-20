@@ -350,8 +350,11 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
     console.log('🖨️ [handlePrint] clicked. canPrintInForm:', canPrintInForm);
     if (!canPrintInForm) return;
     try {
+      const nowTs = formatThaiDateTime();
       const payload = buildPayload();
-      console.log('🖨️ [handlePrint] payload built successfully:', payload);
+      payload.printedTimestamp = nowTs;
+      storageService.updateReceiptPrintTimestamp(receiptNo, nowTs);
+      console.log('🖨️ [handlePrint] payload built successfully with realtime timestamp:', payload);
       onPrintTrigger(payload);
     } catch (e) {
       console.error('🖨️ [handlePrint] Error building payload or triggering print:', e);
