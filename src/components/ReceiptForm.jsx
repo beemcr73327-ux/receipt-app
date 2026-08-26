@@ -11,7 +11,9 @@ import {
   HelpCircle,
   Printer,
   Save,
-  ChevronLeft
+  ChevronLeft,
+  History,
+  X
 } from 'lucide-react';
 import SearchableSelect from './SearchableSelect';
 import AddItemModal from './AddItemModal';
@@ -41,6 +43,17 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
   const [chequeNo, setChequeNo] = useState('');
   const [paymentDateIso, setPaymentDateIso] = useState(getTodayISO());
   const [paymentDateThai, setPaymentDateThai] = useState(formatThaiDate());
+  const [cashierName, setCashierName] = useState('');
+  const [cashierHistory, setCashierHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('receipt_cashier_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [showCashierDropdown, setShowCashierDropdown] = useState(false);
+  const cashierDropdownRef = useRef(null);
   const [notes, setNotes] = useState('');
 
   // Modal State
@@ -68,6 +81,28 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
   const isFormFilled = buyerName.trim() !== '' || items.length > 0 || notes.trim() !== '' || bankDetails.trim() !== '' || chequeNo.trim() !== '';
   const isDirty = !isSaved && !viewReceiptData && isFormFilled;
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (cashierDropdownRef.current && !cashierDropdownRef.current.contains(event.target)) {
+        setShowCashierDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleDeleteCashierHistory = (e, nameToDelete) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const updated = cashierHistory.filter(name => name !== nameToDelete);
+    setCashierHistory(updated);
+    try {
+      localStorage.setItem('receipt_cashier_history', JSON.stringify(updated));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   // Reset form for new receipt
   const handleNewFormDirect = () => {
     if (onClearViewData) onClearViewData();
@@ -87,6 +122,8 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
     setChequeNo('');
     setPaymentDateIso(getTodayISO());
     setPaymentDateThai(formatThaiDate());
+    setCashierName('');
+    setShowCashierDropdown(false);
 
     setNotes('');
     setIsSaved(false);
@@ -172,6 +209,8 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
         setChequeNo(cleanStr(viewReceiptData.chequeNo));
         setPaymentDateIso(viewReceiptData.paymentDateIso || getTodayISO());
         setPaymentDateThai(cleanStr(viewReceiptData.paymentDateThai) || formatThaiDate());
+        setCashierName(cleanStr(viewReceiptData.cashierName || viewReceiptData.cashier || viewReceiptData.receiverName || ''));
+        setShowCashierDropdown(false);
         setNotes(cleanStr(viewReceiptData.notes));
         setIsSaved(true);
         setIsSaving(false);
@@ -297,7 +336,7 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
       paymentDateIso,
       paymentDateThai,
       notes,
-      cashierName: currentUser?.fullName || (currentUser?.firstName ? `${currentUser.firstName} ${currentUser.lastName || ''}`.trim() : '') || 'ผู้รับเงิน',
+      cashierName: cashierName.trim() || currentUser?.fullName || (currentUser?.firstName ? `${currentUser.firstName} ${currentUser.lastName || ''}`.trim() : '') || 'ผู้รับเงิน',
       status: 'ปกติ',
       printedTimestamp: nowTimestamp
     };
@@ -326,6 +365,17 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
       setIsSaving(true);
       const payload = buildPayload();
       await storageService.saveReceipt(payload);
+
+      if (cashierName.trim()) {
+        const cleanName = cashierName.trim();
+        const updated = [cleanName, ...cashierHistory.filter(n => n !== cleanName)].slice(0, 20);
+        setCashierHistory(updated);
+        try {
+          localStorage.setItem('receipt_cashier_history', JSON.stringify(updated));
+        } catch (err) {
+          console.error(err);
+        }
+      }
 
       if (buyerName && buyerAddress) {
         storageService.addSupplier({ name: buyerName, address: buyerAddress });
@@ -798,6 +848,78 @@ const ReceiptForm = forwardRef(({ currentUser, viewReceiptData, refreshTrigger, 
                     onChange={(e) => handlePaymentDateIsoChange(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                   />
+                )}
+              </div>
+
+              {/* ชื่อผู้รับเงิน (พร้อมประวัติการค้นหา/พิมพ์สไตล์ Google) */}
+              <div className="relative" ref={cashierDropdownRef}>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  ชื่อผู้รับเงิน
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={cashierName}
+                    disabled={isSaved}
+                    onFocus={() => setShowCashierDropdown(true)}
+                    onChange={(e) => {
+                      setCashierName(e.target.value);
+                      setShowCashierDropdown(true);
+                    }}
+                    placeholder="ระบุชื่อผู้รับเงิน..."
+                    className="w-full pl-2.5 pr-7 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                  />
+                  {cashierName && !isSaved && (
+                    <button
+                      type="button"
+                      onClick={() => setCashierName('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded transition cursor-pointer"
+                      title="ล้างข้อมูล"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Dropdown ประวัติสไตล์ Google */}
+                {showCashierDropdown && !isSaved && cashierHistory.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden py-1 divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="px-3 py-1 text-[10px] font-semibold text-slate-400 bg-slate-50 flex items-center justify-between">
+                      <span>ประวัติที่เคยพิมพ์</span>
+                    </div>
+                    <div className="max-h-44 overflow-y-auto">
+                      {cashierHistory
+                        .filter(item => !cashierName || item.toLowerCase().includes(cashierName.toLowerCase()))
+                        .map((item, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              setCashierName(item);
+                              setShowCashierDropdown(false);
+                            }}
+                            className="flex items-center justify-between px-3 py-1.5 hover:bg-blue-50 text-xs text-slate-700 hover:text-blue-700 cursor-pointer transition group"
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <History className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-500 shrink-0" />
+                              <span className="truncate">{item}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteCashierHistory(e, item)}
+                              title="ลบออกจากประวัติ"
+                              className="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded transition shrink-0 ml-2"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+                      {cashierHistory.filter(item => !cashierName || item.toLowerCase().includes(cashierName.toLowerCase())).length === 0 && (
+                        <div className="px-3 py-2 text-xs text-slate-400 text-center">
+                          ไม่พบประวัติที่ตรงกัน
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 

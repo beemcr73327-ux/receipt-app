@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, Plus, Check, Calculator, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Plus, Check, Calculator, AlertCircle, History } from 'lucide-react';
 import SearchableSelect from './SearchableSelect';
 import { storageService } from '../services/storageService';
 import { getThaiYearMonthPrefix } from '../utils/dateUtils';
@@ -17,7 +17,39 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
   const [drc, setDrc] = useState('');
   const [discountAmount, setDiscountAmount] = useState('');
   const [discountDetails, setDiscountDetails] = useState('');
+  const [discountHistory, setDiscountHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('receipt_discount_details_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [showDiscountDropdown, setShowDiscountDropdown] = useState(false);
+  const discountDropdownRef = useRef(null);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (discountDropdownRef.current && !discountDropdownRef.current.contains(event.target)) {
+        setShowDiscountDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleDeleteDiscountHistory = (e, nameToDelete) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const updated = discountHistory.filter(item => item !== nameToDelete);
+    setDiscountHistory(updated);
+    try {
+      localStorage.setItem('receipt_discount_details_history', JSON.stringify(updated));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     if (initialData) {
@@ -39,6 +71,7 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
       setDiscountAmount('');
       setDiscountDetails('');
     }
+    setShowDiscountDropdown(false);
     setError('');
   }, [isOpen, initialData]);
 
@@ -92,6 +125,17 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
     }
 
     const cleanTitle = title.replace(/^[A-Za-z0-9]+:\s*/, '').trim();
+
+    if (discountDetails.trim()) {
+      const cleanDisc = discountDetails.trim();
+      const updated = [cleanDisc, ...discountHistory.filter(n => n !== cleanDisc)].slice(0, 20);
+      setDiscountHistory(updated);
+      try {
+        localStorage.setItem('receipt_discount_details_history', JSON.stringify(updated));
+      } catch (err) {
+        console.error(err);
+      }
+    }
 
     onAddItem({
       id: initialData?.id || Date.now(),
@@ -264,17 +308,74 @@ export default function AddItemModal({ isOpen, onClose, onAddItem, initialData =
               />
             </div>
 
-            <div>
+            <div className="relative" ref={discountDropdownRef}>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 รายละเอียด
               </label>
-              <input
-                type="text"
-                value={discountDetails}
-                onChange={(e) => setDiscountDetails(e.target.value)}
-                placeholder=""
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={discountDetails}
+                  onFocus={() => setShowDiscountDropdown(true)}
+                  onChange={(e) => {
+                    setDiscountDetails(e.target.value);
+                    setShowDiscountDropdown(true);
+                  }}
+                  placeholder="เช่น ค่าดำเนินการ, ค่าธรรมเนียม..."
+                  className="w-full pl-3 pr-7 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {discountDetails && (
+                  <button
+                    type="button"
+                    onClick={() => setDiscountDetails('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded transition cursor-pointer"
+                    title="ล้างข้อมูล"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Dropdown ประวัติสไตล์ Google */}
+              {showDiscountDropdown && discountHistory.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden py-1 divide-y divide-slate-100 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="px-3 py-1 text-[10px] font-semibold text-slate-400 bg-slate-50 flex items-center justify-between">
+                    <span>ประวัติที่เคยพิมพ์</span>
+                  </div>
+                  <div className="max-h-36 overflow-y-auto">
+                    {discountHistory
+                      .filter(item => !discountDetails || item.toLowerCase().includes(discountDetails.toLowerCase()))
+                      .map((item, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            setDiscountDetails(item);
+                            setShowDiscountDropdown(false);
+                          }}
+                          className="flex items-center justify-between px-3 py-1.5 hover:bg-blue-50 text-xs text-slate-700 hover:text-blue-700 cursor-pointer transition group"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <History className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-500 shrink-0" />
+                            <span className="truncate">{item}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => handleDeleteDiscountHistory(e, item)}
+                            title="ลบออกจากประวัติ"
+                            className="text-slate-300 hover:text-rose-500 hover:bg-rose-50 p-1 rounded transition shrink-0 ml-2"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    {discountHistory.filter(item => !discountDetails || item.toLowerCase().includes(discountDetails.toLowerCase())).length === 0 && (
+                      <div className="px-3 py-2 text-xs text-slate-400 text-center">
+                        ไม่พบประวัติที่ตรงกัน
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

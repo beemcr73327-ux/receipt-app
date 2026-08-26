@@ -280,7 +280,7 @@ function handleSaveReceipt(d, logSheetId) {
       }
     }
 
-    var discNoteVal = String(itm.discountDetails || itm.discountNote || itemDetailsVal || "").trim();
+    var discNoteVal = String(itm.discountDetails || itm.discountNote || "").trim();
 
     rowsToInsert.push([
       docDateVal || "",
