@@ -165,15 +165,9 @@ class StorageService {
   getSourceBanks() {
     try {
       const raw = JSON.parse(localStorage.getItem(KEYS.SOURCE_BANKS));
-      if (raw && Array.isArray(raw) && raw.length > 0) return raw;
+      if (raw && Array.isArray(raw)) return raw;
     } catch {}
-    return [
-      { formatted: 'BBL 0488', fullValue: 'BBL 4143010488', bankAbbr: 'BBL', fullAccNum: '4143010488', last4: '0488', accountHolder: 'บจก. ศรีสุข พูนทรัพย์ ยางพารา จำกัด' },
-      { formatted: 'KTB 3115', fullValue: 'KTB 6781803115', bankAbbr: 'KTB', fullAccNum: '6781803115', last4: '3115', accountHolder: 'บจก. ศรีสุข พูนทรัพย์ ยางพารา จำกัด' },
-      { formatted: 'SCB 5236', fullValue: 'SCB 4321625236', bankAbbr: 'SCB', fullAccNum: '4321625236', last4: '5236', accountHolder: 'บจก. ศรีสุข พูนทรัพย์ ยางพารา จำกัด' },
-      { formatted: 'SCB 9083', fullValue: 'SCB 7732609083', bankAbbr: 'SCB', fullAccNum: '7732609083', last4: '9083', accountHolder: 'บจก. ศรีสุข พูนทรัพย์ ยางพารา จำกัด' },
-      { formatted: 'BAY 5056', fullValue: 'BAY 1291795056', bankAbbr: 'BAY', fullAccNum: '1291795056', last4: '5056', accountHolder: 'บจก. ศรีสุข พูนทรัพย์ ยางพารา จำกัด' }
-    ];
+    return [];
   }
 
   getSourceBankDetails(sourceVal) {
@@ -201,24 +195,23 @@ class StorageService {
   getDestBanks() {
     try {
       const raw = JSON.parse(localStorage.getItem(KEYS.DEST_BANKS));
-      if (raw && Array.isArray(raw) && raw.length > 0) return raw;
+      if (raw && Array.isArray(raw)) return raw;
     } catch {}
-    return [
-      { accNo: '6781803115', bankName: 'ธนาคารกรุงไทย นายสมศักดิ์', formatted: '6781803115 (ธนาคารกรุงไทย นายสมศักดิ์)' },
-      { accNo: '4321625236', bankName: 'ธนาคารไทยพาณิชย์ นายสมบูรณ์', formatted: '4321625236 (ธนาคารไทยพาณิชย์ นายสมบูรณ์)' }
-    ];
+    return [];
   }
 
-  addDestBank(accNo, bankName) {
+  addDestBank(accNo, bankName, accHolder = '') {
     if (!accNo || !accNo.trim()) return;
     const cleanAcc = accNo.trim();
     const cleanBank = String(bankName || '').trim();
+    const cleanHolder = String(accHolder || '').trim();
     const list = this.getDestBanks();
     const exists = list.some(b => (b.accNo || String(b)).toLowerCase().trim() === cleanAcc.toLowerCase());
     if (!exists) {
       list.push({
         accNo: cleanAcc,
         bankName: cleanBank,
+        accHolder: cleanHolder,
         formatted: `${cleanAcc} (${cleanBank})`.trim()
       });
       localStorage.setItem(KEYS.DEST_BANKS, JSON.stringify(list));
@@ -259,6 +252,29 @@ class StorageService {
       list.push({ formatted: clean, fullValue: clean });
       localStorage.setItem(KEYS.BANKS, JSON.stringify(list));
     }
+  }
+
+  async saveBankToGoogleSheets(bankData) {
+    const payload = {
+      action: 'saveBank',
+      configSheetId: CONFIG_SHEET_ID,
+      data: bankData
+    };
+    const res = await this.sendApiPost(payload);
+    // Refresh local config cache afterwards
+    await this.fetchConfigFromGoogleSheets();
+    return res;
+  }
+
+  async deleteBankFromGoogleSheets(bankData) {
+    const payload = {
+      action: 'deleteBank',
+      configSheetId: CONFIG_SHEET_ID,
+      data: bankData
+    };
+    const res = await this.sendApiPost(payload);
+    await this.fetchConfigFromGoogleSheets();
+    return res;
   }
 
   // --- User Authentication & Profiles ---
@@ -826,11 +842,16 @@ class StorageService {
             .filter(b => typeof b === 'object' && b.usage === 'PV')
             .map(b => {
               const accNo = (b.fullAccNum || b.formatted || '').trim();
-              const bankName = (b.destBankName || (b.bankFullName ? `${b.bankFullName} ${b.accountHolder || ''}` : b.accountHolder || '')).trim();
+              let pureBankName = (b.bankFullName || b.destBankName || b.bankAbbr || '').trim();
+              const accHolder = (b.accountHolder || '').trim();
+              if (accHolder && pureBankName.includes(accHolder)) {
+                pureBankName = pureBankName.replace(accHolder, '').trim();
+              }
               return {
                 accNo: accNo,
-                bankName: bankName,
-                formatted: `${accNo} (${bankName})`.trim()
+                bankName: pureBankName,
+                accHolder: accHolder,
+                formatted: pureBankName ? `${accNo} (${pureBankName})`.trim() : accNo
               };
             })
             .filter(b => b.accNo);
@@ -908,14 +929,24 @@ class StorageService {
           // 2. บัญชีปลายทาง (PV) -> แสดงเต็มบนเว็บ (เลขที่บัญชีเต็ม)
           const destList = rawBanks.filter(b => b.usage === 'PV' || b.usage === 'RC,PV' || b.usage === 'ALL,PV').map(b => {
             if (typeof b === 'object' && b !== null) {
-              const label = `${b.fullAccNum || b.last4 || ''} (${b.bankFullName || ''} ${b.accountHolder || ''})`.trim();
+              const accNo = (b.fullAccNum || b.last4 || '').trim();
+              const bankName = (b.bankFullName || b.destBankName || b.bankName || '').trim();
+              const bankAbbr = (b.bankAbbr || '').trim();
+              const accHolder = (b.accountHolder || '').trim();
+              const label = `${accNo} (${bankName}${accHolder ? ' ' + accHolder : ''})`.trim();
               return { 
-                accNo: b.fullAccNum || b.last4 || '', 
-                bankName: `${b.bankFullName || ''} ${b.accountHolder || ''}`.trim(),
+                accNo: accNo, 
+                bankAbbr: bankAbbr,
+                bankName: bankName,
+                bankFullName: bankName,
+                accHolder: accHolder,
+                accountHolder: accHolder,
+                fullAccNum: accNo,
+                usage: b.usage || 'PV',
                 formatted: label
               };
             }
-            return { accNo: String(b), bankName: '', formatted: String(b) };
+            return { accNo: String(b), bankName: '', bankAbbr: '', accHolder: '', formatted: String(b) };
           });
           localStorage.setItem(KEYS.DEST_BANKS, JSON.stringify(destList));
           localStorage.setItem(KEYS.VOUCHER_BANKS, JSON.stringify(sourceList));

@@ -138,8 +138,9 @@ function SingleVoucherPage({ voucherData, isCopy = false }) {
                       cleanStr(voucherData.status) === 'ยกเลิก' || 
                       Boolean(voucherData.cancelReason && cleanStr(voucherData.cancelReason).length > 0);
 
-  const rawTs = voucherData.printedTimestamp || voucherData.updatedAt || '';
-  const printedTimestamp = rawTs ? formatThaiDateTime(rawTs) : formatThaiDateTime();
+  const printedTimestamp = (voucherData?.forceTimestamp && String(voucherData.forceTimestamp).trim())
+    ? formatThaiDateTime(voucherData.forceTimestamp)
+    : formatThaiDateTime();
   const tsParts = printedTimestamp.includes(' ') ? printedTimestamp.split(' ') : [printedTimestamp, ''];
   const printDateVal = normalizeThaiDate(tsParts[0] || docDateThai);
   const printTimeVal = tsParts[1] || '';

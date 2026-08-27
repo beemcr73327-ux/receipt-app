@@ -14,7 +14,8 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
-  User
+  User,
+  Landmark
 } from 'lucide-react';
 
 const MENU_STORAGE_KEY = 'receipt_sidebar_open_groups_v3';
@@ -33,9 +34,9 @@ export default function Sidebar({
   const [openGroups, setOpenGroups] = useState(() => {
     try {
       const saved = localStorage.getItem(MENU_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : { finance: true, masterData: false };
+      return saved ? JSON.parse(saved) : { finance: true, accountRecords: true, masterData: false };
     } catch {
-      return { finance: true, masterData: false };
+      return { finance: true, accountRecords: true, masterData: false };
     }
   });
 
@@ -54,6 +55,7 @@ export default function Sidebar({
   const isSearchActive = searchQuery.trim().length > 0;
 
   const [isPaymentOpen, setIsPaymentOpen] = useState(true);
+  const [isPayoutOpen, setIsPayoutOpen] = useState(true);
 
   return (
     <aside
@@ -169,6 +171,93 @@ export default function Sidebar({
                 )}
               </div>
 
+              {/* Sub-group: จ่ายชำระ (Payment Vouchers) */}
+              <div>
+                <button
+                  onClick={() => setIsPayoutOpen(!isPayoutOpen)}
+                  className="w-full px-2 py-1 font-semibold text-slate-700 flex items-center justify-between hover:text-slate-900 cursor-pointer rounded transition"
+                >
+                  <span>จ่ายชำระ</span>
+                  {isPayoutOpen || isSearchActive ? (
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="w-3 h-3 text-slate-400" />
+                  )}
+                </button>
+
+                {(isPayoutOpen || isSearchActive) && (
+                  <div className="ml-3 my-1 space-y-1">
+                    {/* ACTIVE ITEM HIGHLIGHT: ใบสำคัญจ่าย */}
+                    <button
+                      onClick={() => onNavigate('voucher_history')}
+                      className={`w-full px-3 py-1.5 rounded-lg text-xs transition flex items-center justify-start cursor-pointer ${
+                        activePage === 'voucher_history' || activePage === 'create_voucher'
+                          ? 'text-blue-600 font-bold border-transparent hover:bg-blue-50/40'
+                          : 'text-slate-600 font-medium border-transparent hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>ใบสำคัญจ่าย</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          )}
+        </div>
+
+        {/* GROUP 2: บันทึกข้อมูลบัญชี */}
+        <div>
+          {!collapsed && (
+            <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-2">
+              บันทึกข้อมูลบัญชี
+            </div>
+          )}
+
+          <button
+            onClick={() => toggleGroup('accountRecords')}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              openGroups.accountRecords || isSearchActive ? 'text-blue-700 bg-blue-50/50' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Landmark className="w-4 h-4 text-emerald-600" />
+              {!collapsed && <span>บันทึกข้อมูลบัญชี</span>}
+            </div>
+            {!collapsed && (
+              <span>
+                {openGroups.accountRecords || isSearchActive ? (
+                  <ChevronDown className="w-3.5 h-3.5 text-blue-500" />
+                ) : (
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                )}
+              </span>
+            )}
+          </button>
+
+          {(openGroups.accountRecords || isSearchActive) && !collapsed && (
+            <div className="ml-7 pl-2 border-l border-emerald-200 my-1 space-y-1 text-xs">
+              <button
+                onClick={() => onNavigate('bank_account_rc')}
+                className={`w-full px-3 py-1.5 rounded-lg text-xs transition flex items-center justify-start cursor-pointer ${
+                  activePage === 'bank_account_rc'
+                    ? 'text-emerald-700 font-bold bg-emerald-50/60'
+                    : 'text-slate-600 font-medium hover:bg-slate-50'
+                }`}
+              >
+                <span>ข้อมูลธุรกรรมรับชำระเงิน</span>
+              </button>
+
+              <button
+                onClick={() => onNavigate('bank_account_pv')}
+                className={`w-full px-3 py-1.5 rounded-lg text-xs transition flex items-center justify-start cursor-pointer ${
+                  activePage === 'bank_account_pv'
+                    ? 'text-rose-700 font-bold bg-rose-50/70'
+                    : 'text-slate-600 font-medium hover:bg-slate-50'
+                }`}
+              >
+                <span>ข้อมูลธุรกรรมจ่ายชำระเงิน</span>
+              </button>
             </div>
           )}
         </div>

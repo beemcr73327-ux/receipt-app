@@ -6,22 +6,30 @@ import AuthModal from './components/AuthModal';
 import ReceiptForm from './components/ReceiptForm';
 import PrintReceipt, { openPrintInNewTab } from './components/PrintReceipt';
 import ReceiptHistoryModal from './components/ReceiptHistoryModal';
+import VoucherForm from './components/VoucherForm';
+import PrintVoucher, { openVoucherPrintDialog } from './components/PrintVoucher';
+import VoucherHistoryModal from './components/VoucherHistoryModal';
 import SettingsModal from './components/SettingsModal';
 import UserManagementModal from './components/UserManagementModal';
+import BankAccountManagement from './components/BankAccountManagement';
 import { storageService } from './services/storageService';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   
-  // Navigation Active Page ('history' | 'create_receipt' | 'user_management' | 'settings')
+  // Navigation Active Page ('history' | 'create_receipt' | 'voucher_history' | 'create_voucher' | 'user_management' | 'settings')
   const [activePage, setActivePage] = useState('history');
   
-  // Selected receipt for viewing details in read-only mode
+  // Selected receipt / voucher for viewing details in read-only mode
   const [viewReceiptData, setViewReceiptData] = useState(null);
+  const [viewVoucherData, setViewVoucherData] = useState(null);
   
-  // Print Payload Data
+  // Print Payload Data & Active Type ('receipt' | 'voucher')
   const [printReceiptData, setPrintReceiptData] = useState(null);
+  const [printVoucherData, setPrintVoucherData] = useState(null);
+  const [activePrintType, setActivePrintType] = useState('receipt');
+
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Dirty Form Navigation Guard State
@@ -29,6 +37,7 @@ export default function App() {
   const [showLeaveModal, setShowLeaveModal] = useState(false);
 
   const receiptFormRef = useRef(null);
+  const voucherFormRef = useRef(null);
 
   useEffect(() => {
     // Initial mount: load current user from storage
@@ -85,23 +94,30 @@ export default function App() {
     setCurrentUser(null);
     setActivePage('history');
     setViewReceiptData(null);
+    setViewVoucherData(null);
   };
 
   const isFormDirty = () => {
     if (activePage === 'create_receipt' && receiptFormRef.current?.getIsDirty) {
       return receiptFormRef.current.getIsDirty();
     }
+    if (activePage === 'create_voucher' && voucherFormRef.current?.getIsDirty) {
+      return voucherFormRef.current.getIsDirty();
+    }
     return false;
   };
 
   const handleSafeNavigate = (targetPageKey) => {
-    if (targetPageKey === activePage && activePage !== 'create_receipt') return;
+    if (targetPageKey === activePage && activePage !== 'create_receipt' && activePage !== 'create_voucher') return;
     if (isFormDirty()) {
       setPendingTarget({ type: 'navigate', pageKey: targetPageKey });
       setShowLeaveModal(true);
     } else {
       if (targetPageKey === 'create_receipt') {
         setViewReceiptData(null);
+      }
+      if (targetPageKey === 'create_voucher') {
+        setViewVoucherData(null);
       }
       setActivePage(targetPageKey);
     }
@@ -121,7 +137,11 @@ export default function App() {
       setPendingTarget({ type: 'new_form' });
       setShowLeaveModal(true);
     } else {
-      receiptFormRef.current?.handleNewFormDirect?.();
+      if (activePage === 'create_receipt') {
+        receiptFormRef.current?.handleNewFormDirect?.();
+      } else if (activePage === 'create_voucher') {
+        voucherFormRef.current?.handleNewFormDirect?.();
+      }
     }
   };
 
@@ -133,22 +153,39 @@ export default function App() {
       if (pendingTarget.pageKey === 'create_receipt') {
         setViewReceiptData(null);
         receiptFormRef.current?.handleNewFormDirect?.();
+      } else if (pendingTarget.pageKey === 'create_voucher') {
+        setViewVoucherData(null);
+        voucherFormRef.current?.handleNewFormDirect?.();
       }
       setActivePage(pendingTarget.pageKey);
     } else if (pendingTarget.type === 'logout') {
       handleLogout();
     } else if (pendingTarget.type === 'new_form') {
-      setViewReceiptData(null);
-      receiptFormRef.current?.handleNewFormDirect?.();
+      if (activePage === 'create_receipt') {
+        setViewReceiptData(null);
+        receiptFormRef.current?.handleNewFormDirect?.();
+      } else if (activePage === 'create_voucher') {
+        setViewVoucherData(null);
+        voucherFormRef.current?.handleNewFormDirect?.();
+      }
     }
     setPendingTarget(null);
   };
 
   const handleReceiptSelectForPrint = (receiptRecord) => {
     flushSync(() => {
+      setActivePrintType('receipt');
       setPrintReceiptData(receiptRecord);
     });
     openPrintInNewTab(receiptRecord);
+  };
+
+  const handleVoucherSelectForPrint = (voucherRecord) => {
+    flushSync(() => {
+      setActivePrintType('voucher');
+      setPrintVoucherData(voucherRecord);
+    });
+    openVoucherPrintDialog(voucherRecord);
   };
 
   return (
@@ -162,6 +199,7 @@ export default function App() {
             setCurrentUser(user);
             setActivePage('history');
             setViewReceiptData(null);
+            setViewVoucherData(null);
           }}
         />
       )}
@@ -189,11 +227,13 @@ export default function App() {
                 viewReceiptData={viewReceiptData}
                 refreshTrigger={refreshTrigger}
                 onSaveSuccess={(savedData) => {
+                  setActivePrintType('receipt');
                   setPrintReceiptData(savedData);
                   setRefreshTrigger(prev => prev + 1);
                 }}
                 onPrintTrigger={(payloadData) => {
                   flushSync(() => {
+                    setActivePrintType('receipt');
                     setPrintReceiptData(payloadData);
                   });
                   openPrintInNewTab(payloadData);
@@ -214,6 +254,50 @@ export default function App() {
                 onSelectReceipt={handleReceiptSelectForPrint}
                 onRefresh={() => setRefreshTrigger(prev => prev + 1)}
               />
+            )}
+
+            {activePage === 'create_voucher' && (
+              <VoucherForm
+                ref={voucherFormRef}
+                currentUser={currentUser}
+                viewVoucherData={viewVoucherData}
+                refreshTrigger={refreshTrigger}
+                onSaveSuccess={(savedData) => {
+                  setActivePrintType('voucher');
+                  setPrintVoucherData(savedData);
+                  setRefreshTrigger(prev => prev + 1);
+                }}
+                onPrintTrigger={(payloadData) => {
+                  flushSync(() => {
+                    setActivePrintType('voucher');
+                    setPrintVoucherData(payloadData);
+                  });
+                  openVoucherPrintDialog(payloadData);
+                }}
+                onBackToHistory={() => handleSafeNavigate('voucher_history')}
+                onClearViewData={() => setViewVoucherData(null)}
+                onReqNewForm={handleReqNewForm}
+              />
+            )}
+
+            {activePage === 'voucher_history' && (
+              <VoucherHistoryModal
+                onCreateNewVoucher={() => handleSafeNavigate('create_voucher')}
+                onViewVoucherDetails={(record) => {
+                  setViewVoucherData(record);
+                  setActivePage('create_voucher');
+                }}
+                onSelectVoucher={handleVoucherSelectForPrint}
+                onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+              />
+            )}
+
+            {activePage === 'bank_account_rc' && (
+              <BankAccountManagement mode="rc" />
+            )}
+
+            {activePage === 'bank_account_pv' && (
+              <BankAccountManagement mode="pv" />
             )}
 
             {activePage === 'user_management' && (
@@ -243,7 +327,7 @@ export default function App() {
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed mb-6 bg-slate-50 p-3 rounded-xl border border-slate-100">
-              คุณกำลังสร้างใบเสร็จและมีข้อมูลที่ยังไม่ได้กดบันทึก หากคุณสลับหน้าไปหน้าอื่นหรือสร้างใหม่ ข้อมูลที่คุณกรอกไว้จะสูญหาย
+              คุณกำลังกรอกเอกสารและมีข้อมูลที่ยังไม่ได้กดบันทึก หากคุณสลับหน้าไปหน้าอื่นหรือสร้างใหม่ ข้อมูลที่คุณกรอกไว้จะสูญหาย
             </p>
 
             <div className="flex items-center justify-end gap-2.5">
@@ -268,9 +352,11 @@ export default function App() {
 
       {/* Print Container (ONLY visible when window.print() is called) */}
       <div className="print-only">
-        <PrintReceipt receiptData={printReceiptData} />
+        {activePrintType === 'receipt' && <PrintReceipt receiptData={printReceiptData} />}
+        {activePrintType === 'voucher' && <PrintVoucher voucherData={printVoucherData} />}
       </div>
 
     </div>
   );
 }
+

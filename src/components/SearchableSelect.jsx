@@ -11,7 +11,8 @@ export default function SearchableSelect({
   showAllOnFocus = false,
   disabled = false,
   maxLength,
-  className = ''
+  className = '',
+  inputClassName = ''
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState(value);
@@ -28,11 +29,14 @@ export default function SearchableSelect({
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsOpen(false);
         setIsTyping(false);
+        if (!allowCustom && query !== value) {
+          setQuery(value || '');
+        }
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [allowCustom, query, value]);
 
   const getOptText = (opt) => {
     if (typeof opt === 'string') return opt;
@@ -70,25 +74,35 @@ export default function SearchableSelect({
   const handleInputChange = (e) => {
     const val = e.target.value;
     setQuery(val);
-    onChange(val);
+    if (allowCustom) {
+      onChange(val);
+    }
     setIsTyping(true);
     setIsOpen(true);
   };
 
   const handleBlur = () => {
-    if (!query) return;
+    if (!query) {
+      if (!allowCustom) {
+        onChange('');
+      }
+      return;
+    }
     const q = query.trim().toLowerCase();
     const matched = options.find(opt => {
+      const text = getOptText(opt).toLowerCase().trim();
       if (typeof opt === 'object' && opt.code) {
-        return opt.code.toLowerCase() === q;
+        return opt.code.toLowerCase() === q || text === q;
       }
-      return false;
+      return text === q;
     });
     if (matched) {
       const formattedText = getOptText(matched);
       setQuery(formattedText);
       onChange(formattedText);
       if (onSelectOption) onSelectOption(matched);
+    } else if (!allowCustom) {
+      setQuery(value || '');
     }
   };
 
@@ -103,6 +117,8 @@ export default function SearchableSelect({
     setIsOpen(false);
   };
 
+  const defaultInputClass = `w-full pl-3 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition shadow-2xs ${disabled ? 'bg-slate-100 !text-slate-500 cursor-not-allowed opacity-90' : ''}`;
+
   return (
     <div className={`relative ${className}`} ref={dropdownRef}>
       <div className="relative">
@@ -115,22 +131,27 @@ export default function SearchableSelect({
           onBlur={handleBlur}
           onFocus={(e) => {
             if (disabled) return;
-            if (!showAllOnFocus) e.target.select();
+            e.target.select();
             setIsTyping(false);
             setIsOpen(true);
           }}
-          onClick={() => {
+          onClick={(e) => {
             if (disabled) return;
+            if (!isOpen) {
+              e.target.select();
+            }
             setIsTyping(false);
             setIsOpen(true);
           }}
           placeholder={placeholder}
-          className={`w-full pl-3 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium transition shadow-2xs ${disabled ? 'bg-slate-100 !text-slate-500 cursor-not-allowed opacity-90' : ''}`}
+          className={inputClassName || defaultInputClass}
         />
-        <ChevronDown
-          className="absolute right-3 top-2.5 w-4 h-4 text-slate-400 pointer-events-none transition-transform"
-          style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-        />
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400">
+          <ChevronDown
+            className="w-3.5 h-3.5 transition-transform"
+            style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          />
+        </div>
       </div>
 
       {isOpen && (
