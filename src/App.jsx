@@ -38,6 +38,7 @@ export default function App() {
 
   const receiptFormRef = useRef(null);
   const voucherFormRef = useRef(null);
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
     // Initial mount: load current user from storage
@@ -49,40 +50,50 @@ export default function App() {
     let intervalId;
     
     const checkUserStatus = async () => {
-      if (currentUser) {
-        // Fetch live config options from Google Sheets
-        const fetchResult = await storageService.fetchConfigFromGoogleSheets();
-        
-        let profiles;
-        if (fetchResult.success && fetchResult.users) {
-          profiles = fetchResult.users;
-        } else {
-          profiles = storageService.getUserProfiles();
-        }
-        const updatedUser = profiles[currentUser.email.toLowerCase()];
-        
-        if (updatedUser) {
-          if (updatedUser.status === 'Blocked') {
-            handleLogout();
-            alert('บัญชีของคุณถูกระงับการใช้งานโดย Admin');
-            return;
-          }
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
 
-          if (updatedUser.role !== currentUser.role || updatedUser.status !== currentUser.status) {
-            storageService.setCurrentUser(updatedUser);
-            setCurrentUser(updatedUser);
+      try {
+        if (currentUser) {
+          // Fetch live config options from Google Sheets
+          const fetchResult = await storageService.fetchConfigFromGoogleSheets();
+          
+          let profiles;
+          if (fetchResult.success && fetchResult.users) {
+            profiles = fetchResult.users;
+          } else {
+            profiles = storageService.getUserProfiles();
           }
+          const updatedUser = profiles[currentUser.email.toLowerCase()];
+          
+          if (updatedUser) {
+            if (updatedUser.status === 'Blocked') {
+              handleLogout();
+              alert('บัญชีของคุณถูกระงับการใช้งานโดย Admin');
+              return;
+            }
+
+            if (updatedUser.role !== currentUser.role || updatedUser.status !== currentUser.status) {
+              storageService.setCurrentUser(updatedUser);
+              setCurrentUser(updatedUser);
+            }
+          }
+          
+          setRefreshTrigger(prev => prev + 1);
+        } else {
+          await storageService.fetchConfigFromGoogleSheets();
         }
-        
-        setRefreshTrigger(prev => prev + 1);
-      } else {
-        await storageService.fetchConfigFromGoogleSheets();
+      } catch (err) {
+        console.warn('⚠️ checkUserStatus error:', err.message);
+      } finally {
+        isFetchingRef.current = false;
       }
     };
 
     checkUserStatus();
 
-    intervalId = setInterval(checkUserStatus, 30000);
+    // ⏱️ ตรวจสอบ Google Sheets ทุกๆ 2 นาที (120,000 ms) เพื่อความเสถียรของระบบ
+    intervalId = setInterval(checkUserStatus, 120000);
 
     return () => {
       if (intervalId) clearInterval(intervalId);
