@@ -127,10 +127,16 @@ function getBanks(configSs, targetModule) {
 function getReceipts(logSheetId) {
   var receipts = [];
   var logSs = SpreadsheetApp.openById(logSheetId);
-  var logSheet = logSs.getSheetByName("database") || logSs.getSheetByName("Receipts") || logSs.getSheets()[0];
+  var logSheet = logSs.getSheetByName("database") || 
+                 logSs.getSheetByName("Receipts") || 
+                 logSs.getSheetByName("Log") || 
+                 logSs.getSheetByName("Sheet1") || 
+                 logSs.getSheetByName("แผ่นงาน1") || 
+                 logSs.getSheets()[0];
   
   if (logSheet && logSheet.getLastRow() > 1) {
-    var logVals = logSheet.getRange(2, 1, logSheet.getLastRow() - 1, 20).getValues();
+    var maxCols = Math.max(logSheet.getLastColumn(), 20);
+    var logVals = logSheet.getRange(2, 1, logSheet.getLastRow() - 1, maxCols).getValues();
     var receiptMap = {};
     var receiptOrder = [];
 
@@ -186,7 +192,12 @@ function getReceipts(logSheetId) {
 
 function handleCancelReceipt(d, logSheetId) {
   var ss = SpreadsheetApp.openById(logSheetId);
-  var sheet = ss.getSheetByName("database") || ss.getSheetByName("Receipts") || ss.getSheets()[0];
+  var sheet = ss.getSheetByName("database") || 
+              ss.getSheetByName("Receipts") || 
+              ss.getSheetByName("Log") || 
+              ss.getSheetByName("Sheet1") || 
+              ss.getSheetByName("แผ่นงาน1") || 
+              ss.getSheets()[0];
   var dataRange = sheet.getDataRange();
   var values = dataRange.getValues();
   var existingRowIndexes = [];
@@ -218,7 +229,12 @@ function handleCancelReceipt(d, logSheetId) {
 
 function handleSaveReceipt(d, logSheetId) {
   var ss = SpreadsheetApp.openById(logSheetId);
-  var sheet = ss.getSheetByName("database") || ss.getSheetByName("Receipts") || ss.getSheets()[0];
+  var sheet = ss.getSheetByName("database") || 
+              ss.getSheetByName("Receipts") || 
+              ss.getSheetByName("Log") || 
+              ss.getSheetByName("Sheet1") || 
+              ss.getSheetByName("แผ่นงาน1") || 
+              ss.getSheets()[0];
   
   if (sheet.getLastRow() === 0) {
     sheet.appendRow([

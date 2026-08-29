@@ -968,18 +968,36 @@ class StorageService {
           console.log(`✅ Users: อัปเดต ${Object.keys(userProfiles).length} รายการ`, userProfiles);
         }
         if (data.receipts && Array.isArray(data.receipts)) {
-          const cleanReceipts = data.receipts.map(r => ({
-            ...r,
-            receiptNo: cleanLeadingQuote(r.receiptNo),
-            buyerTaxId: cleanLeadingQuote(r.buyerTaxId || r.taxId),
-            taxId: cleanLeadingQuote(r.taxId || r.buyerTaxId),
-            items: (r.items || []).map(itm => ({
-              ...itm,
-              period: cleanLeadingQuote(itm.period)
-            }))
-          }));
-          localStorage.setItem(KEYS.RECEIPTS, JSON.stringify(cleanReceipts));
-          console.log(`✅ Receipts: อัปเดตประวัติใบเสร็จ ${cleanReceipts.length} รายการจาก Google Sheet`);
+          if (data.receipts.length > 0) {
+            const localReceipts = this.getReceipts();
+            const remoteMap = new Map();
+            const cleanReceipts = data.receipts.map(r => ({
+              ...r,
+              receiptNo: cleanLeadingQuote(r.receiptNo),
+              buyerTaxId: cleanLeadingQuote(r.buyerTaxId || r.taxId),
+              taxId: cleanLeadingQuote(r.taxId || r.buyerTaxId),
+              items: (r.items || []).map(itm => ({
+                ...itm,
+                period: cleanLeadingQuote(itm.period)
+              }))
+            }));
+
+            cleanReceipts.forEach(r => {
+              if (r.receiptNo) remoteMap.set(r.receiptNo, r);
+            });
+
+            const merged = [...cleanReceipts];
+            localReceipts.forEach(localItem => {
+              if (localItem.receiptNo && !remoteMap.has(localItem.receiptNo)) {
+                merged.push(localItem);
+              }
+            });
+
+            localStorage.setItem(KEYS.RECEIPTS, JSON.stringify(merged));
+            console.log(`✅ Receipts: ผสานประวัติใบเสร็จ ${merged.length} รายการ (จาก Google Sheet ${cleanReceipts.length} รายการ)`);
+          } else {
+            console.log('ℹ️ Receipts: Google Sheet ยังไม่มีข้อมูล — คงข้อมูลใน LocalStorage ไว้');
+          }
         }
         if (data.receivers && Array.isArray(data.receivers) && data.receivers.length > 0) {
           const cleanReceivers = data.receivers.map(r => ({
@@ -1043,15 +1061,33 @@ class StorageService {
           console.log(`✅ บัญชีธนาคารใบสำคัญจ่ายอัปเดตแล้ว: ต้นทาง (ALL) ${sourceList.length} รายการ, ปลายทาง (PV) ${destList.length} รายการ`);
         }
         if (data.vouchers && Array.isArray(data.vouchers)) {
-          const cleanVouchers = data.vouchers.map(v => ({
-            ...v,
-            voucherNo: cleanLeadingQuote(v.voucherNo),
-            refNo: cleanLeadingQuote(v.refNo),
-            chequeOrDestAcc: cleanLeadingQuote(v.chequeOrDestAcc),
-            sourceBankAcc: cleanLeadingQuote(v.sourceBankAcc)
-          }));
-          localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(cleanVouchers));
-          console.log(`✅ Vouchers: อัปเดตประวัติใบสำคัญจ่าย ${cleanVouchers.length} รายการจาก Google Sheet`);
+          if (data.vouchers.length > 0) {
+            const localVouchers = this.getVouchers();
+            const remoteMap = new Map();
+            const cleanVouchers = data.vouchers.map(v => ({
+              ...v,
+              voucherNo: cleanLeadingQuote(v.voucherNo),
+              refNo: cleanLeadingQuote(v.refNo),
+              chequeOrDestAcc: cleanLeadingQuote(v.chequeOrDestAcc),
+              sourceBankAcc: cleanLeadingQuote(v.sourceBankAcc)
+            }));
+
+            cleanVouchers.forEach(v => {
+              if (v.voucherNo) remoteMap.set(v.voucherNo, v);
+            });
+
+            const merged = [...cleanVouchers];
+            localVouchers.forEach(localItem => {
+              if (localItem.voucherNo && !remoteMap.has(localItem.voucherNo)) {
+                merged.push(localItem);
+              }
+            });
+
+            localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(merged));
+            console.log(`✅ Vouchers: ผสานประวัติใบสำคัญจ่าย ${merged.length} รายการ (จาก Google Sheet ${cleanVouchers.length} รายการ)`);
+          } else {
+            console.log('ℹ️ Vouchers: Google Sheet ยังไม่มีข้อมูล — คงข้อมูลใน LocalStorage ไว้');
+          }
         }
         console.log('🎉 ดึงข้อมูล Config สำเร็จทั้งหมด!');
         console.groupEnd();

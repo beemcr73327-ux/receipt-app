@@ -167,7 +167,13 @@ function generateNextVoucherNo(voucherSs, docDateInput) {
 function getVouchers(voucherSheetId) {
   var vouchers = [];
   var ss = SpreadsheetApp.openById(voucherSheetId);
-  var sheet = ss.getSheetByName("database") || ss.getSheetByName("PaymentVouchers") || ss.getSheets()[0];
+  var sheet = ss.getSheetByName("database") || 
+              ss.getSheetByName("PaymentVouchers") || 
+              ss.getSheetByName("Vouchers") || 
+              ss.getSheetByName("Log") || 
+              ss.getSheetByName("Sheet1") || 
+              ss.getSheetByName("แผ่นงาน1") || 
+              ss.getSheets()[0];
   
   if (sheet && sheet.getLastRow() > 1) {
     var maxCols = Math.max(sheet.getLastColumn(), 18);
@@ -226,7 +232,13 @@ function getVouchers(voucherSheetId) {
  */
 function handleSaveVoucher(d, voucherSheetId, configSheetId) {
   var ss = SpreadsheetApp.openById(voucherSheetId);
-  var sheet = ss.getSheetByName("database") || ss.getSheetByName("PaymentVouchers") || ss.getSheets()[0];
+  var sheet = ss.getSheetByName("database") || 
+              ss.getSheetByName("PaymentVouchers") || 
+              ss.getSheetByName("Vouchers") || 
+              ss.getSheetByName("Log") || 
+              ss.getSheetByName("Sheet1") || 
+              ss.getSheetByName("แผ่นงาน1") || 
+              ss.getSheets()[0];
   
   // สร้างหัวตารางถ้าเป็นชีตใหม่ (18 คอลัมน์ Col A - Col R)
   if (sheet.getLastRow() === 0) {
@@ -351,7 +363,13 @@ function handleSaveVoucher(d, voucherSheetId, configSheetId) {
  */
 function handleCancelVoucher(d, voucherSheetId) {
   var ss = SpreadsheetApp.openById(voucherSheetId);
-  var sheet = ss.getSheetByName("database") || ss.getSheetByName("PaymentVouchers") || ss.getSheets()[0];
+  var sheet = ss.getSheetByName("database") || 
+              ss.getSheetByName("PaymentVouchers") || 
+              ss.getSheetByName("Vouchers") || 
+              ss.getSheetByName("Log") || 
+              ss.getSheetByName("Sheet1") || 
+              ss.getSheetByName("แผ่นงาน1") || 
+              ss.getSheets()[0];
   var dataRange = sheet.getDataRange();
   var values = dataRange.getValues();
   var rawTarget = String(d.voucherNo || d.docNo || '').trim();
