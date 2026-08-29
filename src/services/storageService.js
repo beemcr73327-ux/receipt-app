@@ -27,6 +27,17 @@ export const CONFIG_SHEET_ID = "1FiWYtzhqsO_7TJ222INNWI8QsgXVJ7lWv83S3bfY7qM";
 export const LOG_SHEET_ID = "1YE4F8WjWT13R_aMOYVmR2NuhaA6FE8ua1cKsdMlttwk";
 export const VOUCHER_SHEET_ID = "1EjB8pdeRTlvu5q9YqltYPfHauy2CLxSWaowkz49zORk";
 
+/**
+ * ลบเครื่องหมาย ' นำหน้าออก เพื่อให้หน้าเว็บแสดงผลเฉพาะตัวเลขสะอาดตา
+ */
+export const cleanLeadingQuote = (val) => {
+  let str = String(val === null || val === undefined ? '' : val).trim();
+  while (str.startsWith("'")) {
+    str = str.substring(1).trim();
+  }
+  return str;
+};
+
 const DEFAULT_RECEIVERS = [
   { name: 'บริษัท ยางพาราไทย จำกัด', address: '164 หมู่ที่ 1 ถนนตรัง-สิเกา ตำบลนาเมืองเพชร อำเภอสิเกา จังหวัดตรัง', taxId: '0925549000221' },
   { name: 'บริษัท นอร์ทอีส รับเบอร์ จำกัด (มหาชน)', address: '398 หมู่ 4 ตำบลโคกม้า อำเภอประโคนชัย จังหวัดบุรีรัมย์ 31140', taxId: '0315555000123' },
@@ -98,7 +109,13 @@ class StorageService {
   // --- Suppliers (datasupplier) ---
   getSuppliers() {
     try {
-      return JSON.parse(localStorage.getItem(KEYS.SUPPLIERS)) || DEFAULT_SUPPLIERS;
+      const list = JSON.parse(localStorage.getItem(KEYS.SUPPLIERS)) || DEFAULT_SUPPLIERS;
+      return list.map(s => ({
+        ...s,
+        name: cleanLeadingQuote(s.name),
+        address: cleanLeadingQuote(s.address),
+        taxId: cleanLeadingQuote(s.taxId)
+      }));
     } catch {
       return DEFAULT_SUPPLIERS;
     }
@@ -141,7 +158,13 @@ class StorageService {
   // --- Receivers (Payment Voucher จ่ายให้) ---
   getReceivers() {
     try {
-      return JSON.parse(localStorage.getItem(KEYS.RECEIVERS)) || DEFAULT_RECEIVERS;
+      const list = JSON.parse(localStorage.getItem(KEYS.RECEIVERS)) || DEFAULT_RECEIVERS;
+      return list.map(r => ({
+        ...r,
+        name: cleanLeadingQuote(r.name),
+        address: cleanLeadingQuote(r.address),
+        taxId: cleanLeadingQuote(r.taxId)
+      }));
     } catch {
       return DEFAULT_RECEIVERS;
     }
@@ -149,13 +172,17 @@ class StorageService {
 
   addReceiver(receiverInput) {
     if (!receiverInput) return;
-    const name = typeof receiverInput === 'object' ? receiverInput.name : String(receiverInput).trim();
+    const name = typeof receiverInput === 'object' ? cleanLeadingQuote(receiverInput.name) : cleanLeadingQuote(receiverInput);
     if (!name) return;
 
     const list = this.getReceivers();
-    const exists = list.some(r => (typeof r === 'object' ? r.name : r).toLowerCase().trim() === name.toLowerCase().trim());
+    const exists = list.some(r => (typeof r === 'object' ? cleanLeadingQuote(r.name) : cleanLeadingQuote(r)).toLowerCase() === name.toLowerCase());
     if (!exists) {
-      const newRec = typeof receiverInput === 'object' ? receiverInput : { name, address: '', taxId: '' };
+      const newRec = typeof receiverInput === 'object' ? {
+        name,
+        address: cleanLeadingQuote(receiverInput.address),
+        taxId: cleanLeadingQuote(receiverInput.taxId)
+      } : { name, address: '', taxId: '' };
       list.push(newRec);
       localStorage.setItem(KEYS.RECEIVERS, JSON.stringify(list));
     }
@@ -165,7 +192,16 @@ class StorageService {
   getSourceBanks() {
     try {
       const raw = JSON.parse(localStorage.getItem(KEYS.SOURCE_BANKS));
-      if (raw && Array.isArray(raw)) return raw;
+      if (raw && Array.isArray(raw)) {
+        return raw.map(b => typeof b === 'object' && b !== null ? ({
+          ...b,
+          bankAbbr: cleanLeadingQuote(b.bankAbbr),
+          last4: cleanLeadingQuote(b.last4),
+          fullAccNum: cleanLeadingQuote(b.fullAccNum),
+          formatted: cleanLeadingQuote(b.formatted),
+          fullValue: cleanLeadingQuote(b.fullValue)
+        }) : cleanLeadingQuote(b));
+      }
     } catch {}
     return [];
   }
@@ -195,18 +231,26 @@ class StorageService {
   getDestBanks() {
     try {
       const raw = JSON.parse(localStorage.getItem(KEYS.DEST_BANKS));
-      if (raw && Array.isArray(raw)) return raw;
+      if (raw && Array.isArray(raw)) {
+        return raw.map(b => typeof b === 'object' && b !== null ? ({
+          ...b,
+          accNo: cleanLeadingQuote(b.accNo || b.fullAccNum || b.last4),
+          fullAccNum: cleanLeadingQuote(b.fullAccNum || b.accNo),
+          last4: cleanLeadingQuote(b.last4),
+          formatted: cleanLeadingQuote(b.formatted)
+        }) : cleanLeadingQuote(b));
+      }
     } catch {}
     return [];
   }
 
   addDestBank(accNo, bankName, accHolder = '') {
     if (!accNo || !accNo.trim()) return;
-    const cleanAcc = accNo.trim();
-    const cleanBank = String(bankName || '').trim();
-    const cleanHolder = String(accHolder || '').trim();
+    const cleanAcc = cleanLeadingQuote(accNo);
+    const cleanBank = cleanLeadingQuote(bankName);
+    const cleanHolder = cleanLeadingQuote(accHolder);
     const list = this.getDestBanks();
-    const exists = list.some(b => (b.accNo || String(b)).toLowerCase().trim() === cleanAcc.toLowerCase());
+    const exists = list.some(b => cleanLeadingQuote(b.accNo || b).toLowerCase() === cleanAcc.toLowerCase());
     if (!exists) {
       list.push({
         accNo: cleanAcc,
@@ -505,7 +549,17 @@ class StorageService {
   // --- Receipts Log ---
   getReceipts() {
     try {
-      return JSON.parse(localStorage.getItem(KEYS.RECEIPTS)) || [];
+      const list = JSON.parse(localStorage.getItem(KEYS.RECEIPTS)) || [];
+      return list.map(r => ({
+        ...r,
+        receiptNo: cleanLeadingQuote(r.receiptNo),
+        buyerTaxId: cleanLeadingQuote(r.buyerTaxId || r.taxId),
+        taxId: cleanLeadingQuote(r.taxId || r.buyerTaxId),
+        items: (r.items || []).map(itm => ({
+          ...itm,
+          period: cleanLeadingQuote(itm.period)
+        }))
+      }));
     } catch {
       return [];
     }
@@ -592,7 +646,15 @@ class StorageService {
   // --- Vouchers Log ---
   getVouchers() {
     try {
-      return JSON.parse(localStorage.getItem(KEYS.VOUCHERS)) || [];
+      const list = JSON.parse(localStorage.getItem(KEYS.VOUCHERS)) || [];
+      return list.map(v => ({
+        ...v,
+        voucherNo: cleanLeadingQuote(v.voucherNo),
+        refNo: cleanLeadingQuote(v.refNo),
+        chequeNo: cleanLeadingQuote(v.chequeNo),
+        chequeOrDestAcc: cleanLeadingQuote(v.chequeOrDestAcc),
+        sourceBankAcc: cleanLeadingQuote(v.sourceBankAcc)
+      }));
     } catch {
       return [];
     }
@@ -793,14 +855,19 @@ class StorageService {
 
       if (data.status === 'success') {
         if (data.suppliers && Array.isArray(data.suppliers) && data.suppliers.length > 0) {
-          localStorage.setItem(KEYS.SUPPLIERS, JSON.stringify(data.suppliers));
-          console.log(`✅ Suppliers: อัปเดต ${data.suppliers.length} รายชื่อ`);
+          const cleanSuppliers = data.suppliers.map(s => ({
+            name: cleanLeadingQuote(s.name),
+            address: cleanLeadingQuote(s.address),
+            taxId: cleanLeadingQuote(s.taxId)
+          })).filter(s => s.name);
+          localStorage.setItem(KEYS.SUPPLIERS, JSON.stringify(cleanSuppliers));
+          console.log(`✅ Suppliers: อัปเดต ${cleanSuppliers.length} รายชื่อ`);
         }
         if (data.tops && Array.isArray(data.tops) && data.tops.length > 0) {
           const topsList = data.tops.map(t => {
             if (typeof t === 'object') {
-              const code = (t.code || t.shortCode || t.shortName || '').trim();
-              const name = (t.name || t.type || '').trim();
+              const code = cleanLeadingQuote(t.code || t.shortCode || t.shortName || '');
+              const name = String(t.name || t.type || '').trim();
               const formatted = t.formatted || (code ? `${code}:${name}` : name);
               return { code, name, formatted };
             }
@@ -821,13 +888,16 @@ class StorageService {
         if (sourceBanks && Array.isArray(sourceBanks) && sourceBanks.length > 0) {
           const cleanBanks = sourceBanks.map(b => {
             if (typeof b === 'object' && b !== null) {
-              const shortLabel = (b.bankAbbr && b.last4)
-                ? `${b.bankAbbr} ${b.last4}`.trim()
-                : (b.formatted || `${b.bankAbbr || ''} ${b.last4 || ''}`.trim());
-              const fullVal = b.sourceBankFormatted || `${b.bankAbbr || ''} ${b.fullAccNum || ''}`.trim();
+              const bankAbbr = cleanLeadingQuote(b.bankAbbr);
+              const last4 = cleanLeadingQuote(b.last4);
+              const fullAccNum = cleanLeadingQuote(b.fullAccNum);
+              const shortLabel = (bankAbbr && last4)
+                ? `${bankAbbr} ${last4}`.trim()
+                : (b.formatted ? cleanLeadingQuote(b.formatted) : `${bankAbbr} ${last4}`.trim());
+              const fullVal = b.sourceBankFormatted ? cleanLeadingQuote(b.sourceBankFormatted) : `${bankAbbr} ${fullAccNum}`.trim();
               return { formatted: shortLabel, fullValue: fullVal };
             }
-            return { formatted: String(b || '').trim(), fullValue: String(b || '').trim() };
+            return { formatted: cleanLeadingQuote(b), fullValue: cleanLeadingQuote(b) };
           }).filter(item => {
             const low = item.formatted.toLowerCase();
             return item.formatted && !low.includes('bank number') && !low.includes('bank_number') && low !== 'ธนาคาร' && low !== 'เลขที่บัญชี';
@@ -841,9 +911,9 @@ class StorageService {
           const destList = vBanks
             .filter(b => typeof b === 'object' && b.usage === 'PV')
             .map(b => {
-              const accNo = (b.fullAccNum || b.formatted || '').trim();
-              let pureBankName = (b.bankFullName || b.destBankName || b.bankAbbr || '').trim();
-              const accHolder = (b.accountHolder || '').trim();
+              const accNo = cleanLeadingQuote(b.fullAccNum || b.formatted || '');
+              let pureBankName = cleanLeadingQuote(b.bankFullName || b.destBankName || b.bankAbbr || '');
+              const accHolder = cleanLeadingQuote(b.accountHolder || '');
               if (accHolder && pureBankName.includes(accHolder)) {
                 pureBankName = pureBankName.replace(accHolder, '').trim();
               }
@@ -898,43 +968,63 @@ class StorageService {
           console.log(`✅ Users: อัปเดต ${Object.keys(userProfiles).length} รายการ`, userProfiles);
         }
         if (data.receipts && Array.isArray(data.receipts)) {
-          localStorage.setItem(KEYS.RECEIPTS, JSON.stringify(data.receipts));
-          console.log(`✅ Receipts: อัปเดตประวัติใบเสร็จ ${data.receipts.length} รายการจาก Google Sheet`);
+          const cleanReceipts = data.receipts.map(r => ({
+            ...r,
+            receiptNo: cleanLeadingQuote(r.receiptNo),
+            buyerTaxId: cleanLeadingQuote(r.buyerTaxId || r.taxId),
+            taxId: cleanLeadingQuote(r.taxId || r.buyerTaxId),
+            items: (r.items || []).map(itm => ({
+              ...itm,
+              period: cleanLeadingQuote(itm.period)
+            }))
+          }));
+          localStorage.setItem(KEYS.RECEIPTS, JSON.stringify(cleanReceipts));
+          console.log(`✅ Receipts: อัปเดตประวัติใบเสร็จ ${cleanReceipts.length} รายการจาก Google Sheet`);
         }
         if (data.receivers && Array.isArray(data.receivers) && data.receivers.length > 0) {
-          localStorage.setItem(KEYS.RECEIVERS, JSON.stringify(data.receivers));
-          console.log(`✅ Receivers: อัปเดตผู้รับเงิน ${data.receivers.length} รายการ`);
+          const cleanReceivers = data.receivers.map(r => ({
+            name: cleanLeadingQuote(r.name),
+            address: cleanLeadingQuote(r.address),
+            taxId: cleanLeadingQuote(r.taxId)
+          })).filter(r => r.name);
+          localStorage.setItem(KEYS.RECEIVERS, JSON.stringify(cleanReceivers));
+          console.log(`✅ Receivers: อัปเดตผู้รับเงิน ${cleanReceivers.length} รายการ`);
         }
         const rawBanks = data.voucherBanks || data.banks || [];
         if (rawBanks && Array.isArray(rawBanks) && rawBanks.length > 0) {
           // 1. บัญชีต้นทาง (ALL) -> แสดงแบบย่อบนเว็บ (BBL 0488) แต่เก็บเต็มส่ง Sheet (BBL 4143010488)
           const sourceList = rawBanks.filter(b => b.usage === 'ALL' || b.usage === 'ALL,RC' || b.usage === 'RC,PV,ALL').map(b => {
             if (typeof b === 'object' && b !== null) {
-              const shortLabel = (b.bankAbbr ? b.bankAbbr + " " : "") + (b.last4 || '');
-              const fullVal = b.sourceBankFormatted || `${b.bankAbbr || ''} ${b.fullAccNum || ''}`.trim();
+              const bankAbbr = cleanLeadingQuote(b.bankAbbr);
+              const last4 = cleanLeadingQuote(b.last4);
+              const fullAccNum = cleanLeadingQuote(b.fullAccNum);
+              const shortLabel = (bankAbbr ? bankAbbr + " " : "") + (last4 || '');
+              const fullVal = b.sourceBankFormatted ? cleanLeadingQuote(b.sourceBankFormatted) : `${bankAbbr} ${fullAccNum}`.trim();
               return { 
+                rowIndex: b.rowIndex,
                 formatted: shortLabel.trim(), 
                 fullValue: fullVal,
-                bankAbbr: b.bankAbbr || '',
-                fullAccNum: b.fullAccNum || '',
-                last4: b.last4 || '',
-                accountHolder: b.accountHolder || '',
-                bankFullName: b.bankFullName || ''
+                bankAbbr: bankAbbr,
+                fullAccNum: fullAccNum,
+                last4: last4,
+                accountHolder: cleanLeadingQuote(b.accountHolder),
+                bankFullName: cleanLeadingQuote(b.bankFullName)
               };
             }
-            return { formatted: String(b), fullValue: String(b) };
+            return { formatted: cleanLeadingQuote(b), fullValue: cleanLeadingQuote(b) };
           });
           localStorage.setItem(KEYS.SOURCE_BANKS, JSON.stringify(sourceList));
 
           // 2. บัญชีปลายทาง (PV) -> แสดงเต็มบนเว็บ (เลขที่บัญชีเต็ม)
           const destList = rawBanks.filter(b => b.usage === 'PV' || b.usage === 'RC,PV' || b.usage === 'ALL,PV').map(b => {
             if (typeof b === 'object' && b !== null) {
-              const accNo = (b.fullAccNum || b.last4 || '').trim();
-              const bankName = (b.bankFullName || b.destBankName || b.bankName || '').trim();
-              const bankAbbr = (b.bankAbbr || '').trim();
-              const accHolder = (b.accountHolder || '').trim();
+              const accNo = cleanLeadingQuote(b.fullAccNum || b.last4 || '');
+              const bankName = cleanLeadingQuote(b.bankFullName || b.destBankName || b.bankName || '');
+              const bankAbbr = cleanLeadingQuote(b.bankAbbr || '');
+              const accHolder = cleanLeadingQuote(b.accountHolder || '');
               const label = `${accNo} (${bankName}${accHolder ? ' ' + accHolder : ''})`.trim();
               return { 
+                rowIndex: b.rowIndex,
                 accNo: accNo, 
                 bankAbbr: bankAbbr,
                 bankName: bankName,
@@ -946,15 +1036,22 @@ class StorageService {
                 formatted: label
               };
             }
-            return { accNo: String(b), bankName: '', bankAbbr: '', accHolder: '', formatted: String(b) };
+            return { accNo: cleanLeadingQuote(b), bankName: '', bankAbbr: '', accHolder: '', formatted: cleanLeadingQuote(b) };
           });
           localStorage.setItem(KEYS.DEST_BANKS, JSON.stringify(destList));
           localStorage.setItem(KEYS.VOUCHER_BANKS, JSON.stringify(sourceList));
           console.log(`✅ บัญชีธนาคารใบสำคัญจ่ายอัปเดตแล้ว: ต้นทาง (ALL) ${sourceList.length} รายการ, ปลายทาง (PV) ${destList.length} รายการ`);
         }
         if (data.vouchers && Array.isArray(data.vouchers)) {
-          localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(data.vouchers));
-          console.log(`✅ Vouchers: อัปเดตประวัติใบสำคัญจ่าย ${data.vouchers.length} รายการจาก Google Sheet`);
+          const cleanVouchers = data.vouchers.map(v => ({
+            ...v,
+            voucherNo: cleanLeadingQuote(v.voucherNo),
+            refNo: cleanLeadingQuote(v.refNo),
+            chequeOrDestAcc: cleanLeadingQuote(v.chequeOrDestAcc),
+            sourceBankAcc: cleanLeadingQuote(v.sourceBankAcc)
+          }));
+          localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(cleanVouchers));
+          console.log(`✅ Vouchers: อัปเดตประวัติใบสำคัญจ่าย ${cleanVouchers.length} รายการจาก Google Sheet`);
         }
         console.log('🎉 ดึงข้อมูล Config สำเร็จทั้งหมด!');
         console.groupEnd();

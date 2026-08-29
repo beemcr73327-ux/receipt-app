@@ -4,7 +4,11 @@ function getSuppliers(configSs) {
   if (supplierSheet && supplierSheet.getLastRow() > 1) {
     var supVals = supplierSheet.getRange("A2:C" + supplierSheet.getLastRow()).getValues();
     suppliers = supVals.map(function(r) { 
-      return { name: String(r[0] || '').trim(), address: String(r[1] || '').trim(), taxId: String(r[2] || '').trim() }; 
+      return { 
+        name: cleanLeadingQuote(r[0]), 
+        address: cleanLeadingQuote(r[1]), 
+        taxId: cleanLeadingQuote(r[2]) 
+      }; 
     }).filter(function(s) { return s.name; });
   }
   return suppliers;
@@ -47,12 +51,12 @@ function getBanks(configSs, targetModule) {
     
     for (var i = 0; i < bankVals.length; i++) {
       var r = bankVals[i];
-      var colA = String(r[0] || '').trim(); // Abbr or Name
-      var colB = String(r[1] || '').trim(); // Full Name or Last 4
-      var colC = String(r[2] || '').trim(); // Last 4 or Full Acc
-      var colD = String(r[3] || '').trim(); // Full Acc
-      var colE = String(r[4] || '').trim(); // Acc Holder Name
-      var colF = String(r[5] || '').trim().toUpperCase(); // Usage Short Code (RC, PV, ALL)
+      var colA = cleanLeadingQuote(r[0]); // Abbr or Name
+      var colB = cleanLeadingQuote(r[1]); // Full Name or Last 4
+      var colC = cleanLeadingQuote(r[2]); // Last 4 or Full Acc
+      var colD = cleanLeadingQuote(r[3]); // Full Acc
+      var colE = cleanLeadingQuote(r[4]); // Acc Holder Name
+      var colF = cleanLeadingQuote(r[5]).toUpperCase(); // Usage Short Code (RC, PV, ALL)
 
       if (!colA && !colB) continue;
       if (colA.toLowerCase() === 'bank' || colB.toLowerCase() === 'number') continue;
@@ -101,10 +105,11 @@ function getBanks(configSs, targetModule) {
       var destNameFormatted = (bankFullName ? bankFullName + " " : "") + (accountHolder || "");
 
       banks.push({
+        rowIndex: i + 2,
         bankAbbr: bankAbbr,
         bankFullName: bankFullName,
-        last4: last4,
-        fullAccNum: fullAccount,
+        last4: cleanLeadingQuote(last4),
+        fullAccNum: cleanLeadingQuote(fullAccount),
         accountHolder: accountHolder,
         usage: colF,
         formatted: formatted.trim(),
@@ -284,11 +289,11 @@ function handleSaveReceipt(d, logSheetId) {
 
     rowsToInsert.push([
       docDateVal || "",
-      d.receiptNo || "",
-      d.buyerName || "",
-      d.buyerAddress || "",
-      d.taxId || d.buyerTaxId || "",
-      itm.period || itm.term || d.period || d.term || "",
+      toSheetText(d.receiptNo),
+      String(d.buyerName || '').trim(),
+      String(d.buyerAddress || '').trim(),
+      toSheetText(d.taxId || d.buyerTaxId || ''),
+      toSheetText(itm.period || itm.term || d.period || d.term || ''),
       fullItemDescription,
       qty,
       price,

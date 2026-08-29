@@ -21,11 +21,11 @@ function handleSaveBank(d, configSheetId) {
       sheet.appendRow(["ตัวย่อ", "ชื่อธนาคาร", "เลขท้าย4หลัก", "เลขที่บัญชีเต็ม", "ชื่อบัญชี", "Short Code"]);
     }
 
-    var originalAccNum = String(d.originalFullAccNum || d.originalAccountNumber || '').trim();
-    var fullAccNum = String(d.fullAccNum || d.accountNumber || '').trim();
+    var originalAccNum = cleanLeadingQuote(d.originalFullAccNum || d.originalAccountNumber || '');
+    var fullAccNum = cleanLeadingQuote(d.fullAccNum || d.accountNumber || '');
     var searchAccNum = originalAccNum || fullAccNum;
 
-    var bankAbbr = String(d.bankAbbr || '').trim();
+    var bankAbbr = cleanLeadingQuote(d.bankAbbr || '');
     var bankFullName = String(d.bankFullName || d.bankName || '').trim();
     var accountHolder = String(d.accountHolder || d.accountName || '').trim();
     var usage = String(d.usage || 'ALL').trim().toUpperCase();
@@ -37,8 +37,8 @@ function handleSaveBank(d, configSheetId) {
       existingRowIndex = Number(d.rowIndex);
     } else if (searchAccNum) {
       for (var i = 1; i < values.length; i++) {
-        var colDVal = String(values[i][3] || '').trim();
-        var colCVal = String(values[i][2] || '').trim();
+        var colDVal = cleanLeadingQuote(values[i][3]);
+        var colCVal = cleanLeadingQuote(values[i][2]);
         if (colDVal === searchAccNum || colCVal === searchAccNum) {
           existingRowIndex = i + 1;
           break;
@@ -47,7 +47,7 @@ function handleSaveBank(d, configSheetId) {
     }
 
     var last4 = fullAccNum.length >= 4 ? fullAccNum.slice(-4) : fullAccNum;
-    var rowData = [bankAbbr, bankFullName, last4, fullAccNum, accountHolder, usage];
+    var rowData = [bankAbbr, bankFullName, toSheetText(last4), toSheetText(fullAccNum), accountHolder, usage];
 
     if (existingRowIndex > 1) {
       sheet.getRange(existingRowIndex, 1, 1, 6).setValues([rowData]);

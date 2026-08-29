@@ -16,9 +16,9 @@ function getVoucherReceivers(configSs) {
     var startIdx = (String(values[0][0]).includes("ชื่อ") || String(values[0][0]).includes("Name")) ? 1 : 0;
     
     for (var i = startIdx; i < values.length; i++) {
-      var name = String(values[i][0] || '').trim();
-      var addr = String(values[i][1] || '').trim();
-      var taxId = String(values[i][2] || '').trim();
+      var name = cleanLeadingQuote(values[i][0]);
+      var addr = cleanLeadingQuote(values[i][1]);
+      var taxId = cleanLeadingQuote(values[i][2]);
       if (name) {
         receivers.push({ name: name, address: addr, taxId: taxId });
       }
@@ -30,8 +30,8 @@ function getVoucherReceivers(configSs) {
 /**
  * 🔹 บันทึกรายชื่อผู้รับเงินใหม่อัตโนมัติ (Auto-save Receiver)
  */
-function autoSaveReceiver(configSs, receiverName) {
-  var cleanName = String(receiverName || '').trim();
+function autoSaveReceiver(configSs, receiverName, taxId) {
+  var cleanName = cleanLeadingQuote(receiverName);
   if (!cleanName) return;
 
   var sheet = configSs.getSheetByName("PV_Receivers") || configSs.getSheetByName("Voucher_Receiver");
@@ -45,7 +45,7 @@ function autoSaveReceiver(configSs, receiverName) {
   if (lastRow >= 1) {
     var names = sheet.getRange(1, 1, lastRow, 1).getValues();
     for (var i = 0; i < names.length; i++) {
-      if (String(names[i][0] || '').trim().toLowerCase() === cleanName.toLowerCase()) {
+      if (cleanLeadingQuote(names[i][0]).toLowerCase() === cleanName.toLowerCase()) {
         exists = true;
         break;
       }
@@ -53,7 +53,7 @@ function autoSaveReceiver(configSs, receiverName) {
   }
 
   if (!exists) {
-    sheet.appendRow([cleanName, "", ""]);
+    sheet.appendRow([cleanName, "", toSheetText(taxId || "")]);
   }
 }
 
@@ -62,7 +62,7 @@ function autoSaveReceiver(configSs, receiverName) {
  * Col A = "", Col B = ชื่อธนาคาร, Col C = "", Col D = เลขที่บัญชี, Col E = ชื่อบัญชี, Col F = "PV"
  */
 function autoSaveDestBank(configSs, chequeOrDestAcc, destBankName, accountHolderName) {
-  var cleanAcc = String(chequeOrDestAcc || '').trim();
+  var cleanAcc = cleanLeadingQuote(chequeOrDestAcc);
   if (!cleanAcc) return;
 
   var bankSheet = configSs.getSheetByName("Master_Banks") || 
@@ -83,8 +83,8 @@ function autoSaveDestBank(configSs, chequeOrDestAcc, destBankName, accountHolder
     var values = bankSheet.getRange(1, 1, lastRow, numCols).getValues();
     
     for (var i = 0; i < values.length; i++) {
-      var colD = String(values[i][3] || '').trim();
-      var colC = String(values[i][2] || '').trim();
+      var colD = cleanLeadingQuote(values[i][3]);
+      var colC = cleanLeadingQuote(values[i][2]);
       var accInRow = colD || colC;
       if (accInRow && accInRow.toLowerCase() === cleanAcc.toLowerCase()) {
         exists = true;
@@ -105,7 +105,8 @@ function autoSaveDestBank(configSs, chequeOrDestAcc, destBankName, accountHolder
       }
     }
 
-    bankSheet.appendRow(["", bName, "", cleanAcc, accHolder, "PV"]);
+    var last4 = cleanAcc.length >= 4 ? cleanAcc.slice(-4) : cleanAcc;
+    bankSheet.appendRow(["", bName, toSheetText(last4), toSheetText(cleanAcc), accHolder, "PV"]);
   }
 }
 
@@ -300,16 +301,16 @@ function handleSaveVoucher(d, voucherSheetId, configSheetId) {
 
     rowsToInsert.push([
       docDateVal,                                // Col A (1): วันที่เอกสาร
-      voucherNo,                                 // Col B (2): เลขที่เอกสาร (ตัวเลข 8 หลัก เช่น 69080001)
+      toSheetText(voucherNo),                    // Col B (2): เลขที่เอกสาร (ตัวเลข 8 หลัก เช่น 69080001)
       receiverName,                              // Col C (3): จ่ายให้
       String(d.mainDescription || d.description || '').trim(), // Col D (4): คำอธิบาย
-      String(d.refNo || d.invoiceNo || '').trim(),             // Col E (5): เลขที่อ้างอิงเอกสาร
+      toSheetText(d.refNo || d.invoiceNo || ''), // Col E (5): เลขที่อ้างอิงเอกสาร
       itemDateVal,                               // Col F (6): วันที่รายการ
       itemDesc,                                  // Col G (7): รายการ
       itemAmt,                                   // Col H (8): จำนวนเงิน
       paymentMethod,                             // Col I (9): ชำระโดย
       sourceBankAcc,                             // Col J (10): บัญชีต้นทาง (ALL: ตัวย่อ + เลขเต็ม)
-      chequeOrDestAcc,                           // Col K (11): เลขที่เช็ค/เลขบัญชีปลายทาง (PV)
+      toSheetText(chequeOrDestAcc),              // Col K (11): เลขที่เช็ค/เลขบัญชีปลายทาง (PV)
       destBank,                                  // Col L (12): ธนาคาร (ชื่อเต็ม + ชื่อบัญชี/สาขา)
       payDateVal,                                // Col M (13): วันที่ชำระเงิน
       String(d.notes || '').trim(),              // Col N (14): หมายเหตุ

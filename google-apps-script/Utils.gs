@@ -22,7 +22,7 @@ function formatPeriodGAS(val) {
     if (year < 2500) year += 543;
     return month + "/" + year;
   }
-  var str = String(val).trim();
+  var str = cleanLeadingQuote(val);
   if (!str || str === '-') return '';
   var mMatch = str.match(/^(\d{1,2})\/(\d{2,4})$/);
   if (mMatch) {
@@ -49,7 +49,7 @@ function formatStandardDateGAS(val) {
     if (year < 2500) year += 543;
     return day + "/" + month + "/" + year;
   }
-  var str = String(val).trim();
+  var str = cleanLeadingQuote(val);
   if (str.includes('-')) {
     var parts = str.split('-');
     if (parts.length === 3) {
@@ -61,11 +61,24 @@ function formatStandardDateGAS(val) {
   return str;
 }
 
+/**
+ * ลบเครื่องหมาย ' นำหน้าออก เพื่อนำไปแสดงผลบนเว็บแอปอย่างสะอาดตา
+ */
 function cleanLeadingQuote(val) {
   var str = String(val === null || val === undefined ? '' : val).trim();
-  if (str.indexOf("'") === 0) {
-    return str.substring(1);
+  while (str.indexOf("'") === 0) {
+    str = str.substring(1).trim();
   }
   return str;
 }
 
+/**
+ * ใส่เครื่องหมาย ' นำหน้าสำหรับเขียนลง Google Sheets
+ * เพื่อป้องกันเลข 0 นำหน้าหาย (เช่น '00123, '0488, '0123456789)
+ */
+function toSheetText(val) {
+  if (val === null || val === undefined) return '';
+  var str = cleanLeadingQuote(val);
+  if (!str) return '';
+  return "'" + str;
+}
