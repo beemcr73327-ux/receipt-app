@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import SearchableSelect from './SearchableSelect';
 import { bahttext } from '../utils/bahttext';
-import { formatThaiDate, formatThaiDateTime, getTodayISO, isoToThaiDate } from '../utils/dateUtils';
+import { formatThaiDate, formatThaiDateTime, getTodayISO, isoToThaiDate, thaiDateToISO } from '../utils/dateUtils';
 import { storageService } from '../services/storageService';
 
 const splitCombinedBank = (combinedStr) => {
@@ -181,13 +181,16 @@ const VoucherForm = forwardRef(({ currentUser, viewVoucherData, refreshTrigger, 
       setRefNo(cleanStr(viewVoucherData.refNo));
 
       if (viewVoucherData.items && viewVoucherData.items.length > 0) {
-        setItems(viewVoucherData.items.map((it, idx) => ({
-          id: it.id || idx + 1,
-          itemDateThai: cleanStr(it.itemDateThai || it.itemDate || viewVoucherData.docDateThai),
-          itemDateIso: getTodayISO(),
-          description: cleanStr(it.description),
-          amount: it.amount || 0
-        })));
+        setItems(viewVoucherData.items.map((it, idx) => {
+          const itDateThai = cleanStr(it.itemDateThai || it.itemDate || viewVoucherData.docDateThai);
+          return {
+            id: it.id || idx + 1,
+            itemDateThai: itDateThai,
+            itemDateIso: thaiDateToISO(itDateThai) || it.itemDateIso || getTodayISO(),
+            description: cleanStr(it.description),
+            amount: it.amount || 0
+          };
+        }));
       }
 
       const method = cleanStr(viewVoucherData.paymentMethod) || 'เงินโอน';
@@ -448,10 +451,18 @@ const VoucherForm = forwardRef(({ currentUser, viewVoucherData, refreshTrigger, 
       mainDescription: mainDescription.trim(),
       refNo: refNo.trim(),
       items: validItems.length > 0 ? validItems.map(it => ({
-        itemDate: it.itemDateThai || docDateThai,
+        itemDate: it.itemDateThai || it.itemDate || docDateThai,
+        itemDateThai: it.itemDateThai || it.itemDate || docDateThai,
+        itemDateIso: it.itemDateIso || docDateIso,
         description: it.description.trim(),
         amount: Number(it.amount)
-      })) : [{ itemDate: docDateThai, description: mainDescription || 'จ่ายชำระค่าสินค้า/บริการ', amount: totalAmount }],
+      })) : [{ 
+        itemDate: docDateThai, 
+        itemDateThai: docDateThai, 
+        itemDateIso: docDateIso,
+        description: mainDescription || 'จ่ายชำระค่าสินค้า/บริการ', 
+        amount: totalAmount 
+      }],
       totalAmount: totalAmount,
       bahtText: bahtTextString,
       paymentMethod: paymentMethod,

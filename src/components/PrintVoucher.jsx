@@ -118,11 +118,16 @@ function SingleVoucherPage({ voucherData, isCopy = false }) {
   const receiverLines = splitTextIntoLines(receiverName, 46, 2);
   const descLines = splitTextIntoLines(mainDescription, 46, 3);
 
-  const items = (voucherData.items && voucherData.items.length > 0) ? voucherData.items : [{
-    itemDateThai: docDateThai,
-    description: mainDescription || '',
-    amount: Number(voucherData.totalAmount || voucherData.amount || 0)
-  }];
+  const items = (voucherData.items && voucherData.items.length > 0)
+    ? voucherData.items.map(it => ({
+        ...it,
+        itemDateThai: normalizeThaiDate(it.itemDateThai || it.itemDate || it.itemDateIso || it.dateThai || docDateThai)
+      }))
+    : [{
+        itemDateThai: docDateThai,
+        description: mainDescription || '',
+        amount: Number(voucherData.totalAmount || voucherData.amount || 0)
+      }];
 
   const totalAmount = Number(voucherData.totalAmount || items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0));
   const bahtTextString = voucherData.bahtText || (totalAmount > 0 ? bahttext(totalAmount) : 'ศูนย์บาทถ้วน');
@@ -432,7 +437,7 @@ function SingleVoucherPage({ voucherData, isCopy = false }) {
                 items.map((itm, idx) => (
                   <tr key={idx} style={{ height: '24px', verticalAlign: 'top' }}>
                     <td style={{ textAlign: 'center', padding: '3px 4px', color: '#000000', ...borderRight075 }}>
-                      {itm.itemDateThai || docDateThai}
+                      {itm.itemDateThai || itm.itemDate || docDateThai}
                     </td>
                     <td style={{ padding: '3px 10px', color: '#000000', lineHeight: '1.35', ...borderRight075 }}>
                       {itm.description || '-'}

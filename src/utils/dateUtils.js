@@ -99,6 +99,23 @@ export function isoToThaiDate(isoDateString) {
 }
 
 /**
+ * Converts Thai Date (DD/MM/YYYY พ.ศ.) to standard HTML date input format (YYYY-MM-DD)
+ */
+export function thaiDateToISO(thaiDateStr) {
+  if (!thaiDateStr) return '';
+  const trimmed = String(thaiDateStr).trim();
+  const match = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    const day = match[1].padStart(2, '0');
+    const month = match[2].padStart(2, '0');
+    let year = parseInt(match[3], 10);
+    if (year >= 2400) year -= 543;
+    return `${year}-${month}-${day}`;
+  }
+  return '';
+}
+
+/**
  * Gets today's ISO date string (YYYY-MM-DD) for HTML <input type="date">
  */
 export function getTodayISO() {
