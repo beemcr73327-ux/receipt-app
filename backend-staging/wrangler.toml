@@ -1,0 +1,18 @@
+name = "receipt-backend-staging"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+ENVIRONMENT = "staging"
+JWT_EXPIRATION_HOURS = "24"
+
+# Cloudflare D1 Database Binding สำหรับ Staging Environment
+[[d1_databases]]
+binding = "DB"
+database_name = "receipt_db_staging"
+database_id = "e989db7a-7221-404f-b459-39ff1281be53"
+
+# Cloudflare R2 Bucket Binding (สำหรับเตรียมพร้อม Phase 3 Backup)
+# [[r2_buckets]]
+# binding = "BACKUP_BUCKET"
+# bucket_name = "receipt-backup-staging"
