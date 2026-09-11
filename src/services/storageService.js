@@ -5,6 +5,14 @@
  */
 
 import { getThaiYearMonthPrefix, formatThaiDate, formatThaiDateTime, getTodayISO } from '../utils/dateUtils';
+import {
+  createReceiptStaging,
+  cancelReceiptStaging,
+  createVoucherStaging,
+  cancelVoucherStaging,
+  checkStagingHealth,
+  DEFAULT_STAGING_API_URL
+} from './stagingApiClient';
 
 const KEYS = {
   SUPPLIERS: 'receipt_config_suppliers',
@@ -77,7 +85,9 @@ const DEFAULT_SETTINGS = {
   webhookUrl: 'https://script.google.com/macros/s/AKfycbyg4uurkB24tvAUP33Xaxgb5JXyPZK06yPCTKnQUDIGSj2lidTmi-T8qx3MJ7ob938d/exec',
   cloudflareWorkerUrl: 'https://receipt-backend-worker.beemcr73327.workers.dev/',
   configSheetId: CONFIG_SHEET_ID,
-  logSheetId: LOG_SHEET_ID
+  logSheetId: LOG_SHEET_ID,
+  apiMode: 'production', // 'production' | 'staging'
+  stagingApiUrl: DEFAULT_STAGING_API_URL
 };
 
 class StorageService {
@@ -587,7 +597,15 @@ class StorageService {
       this.addBank(receiptData.bankDetails);
     }
 
-    // ⬇️ ใช้ await เพื่อให้ error ไม่ถูกกลืน
+    const settings = this.getSettings();
+    if (settings.apiMode === 'staging') {
+      console.log('⚡ [saveReceipt] Routing to Staging Edge D1 API:', settings.stagingApiUrl);
+      const stagingResult = await createReceiptStaging(updatedData, settings.stagingApiUrl);
+      console.log('✅ [saveReceipt] Staging API result:', stagingResult);
+      return { ...updatedData, _stagingResult: stagingResult };
+    }
+
+    // ⬇️ ใช้ await เพื่อให้ error ไม่ถูกกลืน (Production mode)
     const syncResult = await this.syncToGoogleSheets(updatedData);
     console.log('📋 [saveReceipt] Sync result:', syncResult);
 
@@ -602,6 +620,15 @@ class StorageService {
       receipts[index].cancelReason = reason;
       receipts[index].cancelledAt = formatThaiDateTime();
       localStorage.setItem(KEYS.RECEIPTS, JSON.stringify(receipts));
+
+      const settings = this.getSettings();
+      if (settings.apiMode === 'staging') {
+        console.log('⚡ [cancelReceipt] Routing to Staging Edge D1 API:', settings.stagingApiUrl);
+        const stagingResult = await cancelReceiptStaging(receiptNo, reason, settings.stagingApiUrl);
+        console.log('✅ [cancelReceipt] Staging cancel result:', stagingResult);
+        return { ...receipts[index], _stagingResult: stagingResult };
+      }
+
       await this.syncToGoogleSheets(receipts[index]);
       return receipts[index];
     }
@@ -688,7 +715,15 @@ class StorageService {
 
     localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(vouchers));
 
-    // Sync to Google Sheets via Cloudflare Proxy
+    const settings = this.getSettings();
+    if (settings.apiMode === 'staging') {
+      console.log('⚡ [saveVoucher] Routing to Staging Edge D1 API:', settings.stagingApiUrl);
+      const stagingResult = await createVoucherStaging(updatedData, settings.stagingApiUrl);
+      console.log('✅ [saveVoucher] Staging API result:', stagingResult);
+      return { ...updatedData, _stagingResult: stagingResult };
+    }
+
+    // Sync to Google Sheets via Cloudflare Proxy (Production mode)
     const syncResult = await this.syncVoucherToGoogleSheets(updatedData);
     console.log('📋 [saveVoucher] Sync result:', syncResult);
 
@@ -703,6 +738,15 @@ class StorageService {
       vouchers[index].cancelReason = reason;
       vouchers[index].cancelledAt = formatThaiDateTime();
       localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(vouchers));
+
+      const settings = this.getSettings();
+      if (settings.apiMode === 'staging') {
+        console.log('⚡ [cancelVoucher] Routing to Staging Edge D1 API:', settings.stagingApiUrl);
+        const stagingResult = await cancelVoucherStaging(voucherNo, reason, settings.stagingApiUrl);
+        console.log('✅ [cancelVoucher] Staging cancel result:', stagingResult);
+        return { ...vouchers[index], _stagingResult: stagingResult };
+      }
+
       await this.syncVoucherToGoogleSheets(vouchers[index], true);
       return vouchers[index];
     }
@@ -751,12 +795,17 @@ class StorageService {
     }
   }
 
-  // --- App Settings ---
   getSettings() {
     try {
       const stored = JSON.parse(localStorage.getItem(KEYS.SETTINGS)) || DEFAULT_SETTINGS;
       if (!stored.cloudflareWorkerUrl) {
          stored.cloudflareWorkerUrl = DEFAULT_SETTINGS.cloudflareWorkerUrl;
+      }
+      if (!stored.apiMode) {
+        stored.apiMode = DEFAULT_SETTINGS.apiMode;
+      }
+      if (!stored.stagingApiUrl) {
+        stored.stagingApiUrl = DEFAULT_SETTINGS.stagingApiUrl;
       }
       return stored;
     } catch {
@@ -766,6 +815,11 @@ class StorageService {
 
   saveSettings(settings) {
     localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
+  }
+
+  async checkStagingConnection(url) {
+    const targetUrl = url || this.getSettings().stagingApiUrl;
+    return await checkStagingHealth(targetUrl);
   }
 
   async syncToGoogleSheets(receiptRecord) {

@@ -15,8 +15,10 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   User,
-  Landmark
+  Landmark,
+  Zap
 } from 'lucide-react';
+import { storageService } from '../services/storageService';
 
 const MENU_STORAGE_KEY = 'receipt_sidebar_open_groups_v3';
 
@@ -29,6 +31,8 @@ export default function Sidebar({
   onLogout
 }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const settings = storageService.getSettings();
+  const isStaging = settings?.apiMode === 'staging';
   
   // Accordion state
   const [openGroups, setOpenGroups] = useState(() => {
@@ -297,12 +301,35 @@ export default function Sidebar({
               }`}
             >
               <Settings className="w-4.5 h-4.5 text-slate-500 shrink-0" />
-              {!collapsed && <span>ตั้งค่า Google Sheet</span>}
+              {!collapsed && <span>ตั้งค่าระบบ & Engine</span>}
             </button>
           </div>
         )}
 
       </div>
+
+      {/* 3.5 Staging Mode Active Badge */}
+      {isStaging && (
+        <div
+          onClick={() => onNavigate('settings')}
+          className="mx-3 mb-2 p-2.5 bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-300/80 rounded-xl cursor-pointer hover:bg-amber-100/40 transition shrink-0 shadow-2xs group"
+          title="กำลังทำงานในโหมดทดสอบ Staging 5.0 (คลิกเพื่อไปที่ตั้งค่า)"
+        >
+          <div className="flex items-center gap-1.5 text-amber-800 font-bold text-[11.5px]">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0"></span>
+            {!collapsed ? (
+              <span className="truncate">⚡ Staging Engine 5.0</span>
+            ) : (
+              <span className="text-center w-full">⚡</span>
+            )}
+          </div>
+          {!collapsed && (
+            <div className="text-[10px] text-amber-700 font-medium truncate mt-0.5">
+              Cloudflare Edge + D1 Active
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 4. User Profile Footer (Avatar + ชื่อ 13px + สถานะ 11px) */}
       <div className="p-3 border-t border-slate-100 bg-slate-50/50 shrink-0">

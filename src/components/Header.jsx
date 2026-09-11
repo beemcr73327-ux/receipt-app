@@ -12,8 +12,10 @@ import {
   HelpCircle,
   Printer,
   Save,
-  ChevronLeft
+  ChevronLeft,
+  Zap
 } from 'lucide-react';
+import { storageService } from '../services/storageService';
 
 export default function Header({
   currentUser,
@@ -44,6 +46,17 @@ export default function Header({
         {/* Right: Company Selector (⇄) & System Controls */}
         <div className="flex items-center gap-2">
           
+          {storageService.getSettings()?.apiMode === 'staging' && (
+            <button
+              onClick={onOpenSettings}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-800 text-[11px] font-bold rounded-lg transition cursor-pointer"
+              title="ระบบกำลังทำงานในโหมดทดสอบ Staging 5.0 (คลิกเพื่อตั้งค่า)"
+            >
+              <Zap className="w-3 h-3 text-amber-600 animate-pulse" />
+              <span>Staging 5.0</span>
+            </button>
+          )}
+
           {/* Company Switcher Dropdown */}
           <div className="flex items-center gap-2 px-3 py-1 bg-white border border-slate-300 rounded-lg text-slate-800 font-semibold shadow-2xs hover:bg-slate-50 cursor-pointer transition">
             <Building2 className="w-3.5 h-3.5 text-blue-600" />

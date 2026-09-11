@@ -71,6 +71,25 @@
 
 ---
 
+### 7. 🔌 พัฒนาระบบ Frontend Migration & Backend Engine Toggle (Phase 1.3)
+* **[`stagingApiClient.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/stagingApiClient.js):**
+  * Staging Client เชื่อมต่อ Cloudflare Worker API ฉีด HTTP Header `X-Idempotency-Key` (UUIDv4) อัตโนมัติทุกคำขอ
+  * รองรับฟังก์ชัน: `checkStagingHealth`, `createReceiptStaging`, `cancelReceiptStaging`, `createVoucherStaging`, `cancelVoucherStaging`
+* **[`storageService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/storageService.js):**
+  * เพิ่มการตั้งค่า `apiMode` (Default: `'production'`) และ `stagingApiUrl` (Default: `'http://localhost:8787'`)
+  * สลับ Routing คำขอ `saveReceipt`, `cancelReceipt`, `saveVoucher`, `cancelVoucher` ไปยัง Staging Edge D1 Backend อัตโนมัติเมื่อเปิด Staging Mode
+  * **Zero-Impact Preservation:** ค่าเริ่มต้นเป็น `'production'` เสมอ ป้องกันผลกระทบต่อผู้ใช้งานทั่วไป 100%
+* **[`SettingsModal.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/SettingsModal.jsx):**
+  * ตัวสลับโหมด Backend Engine: `🟢 Production Mode (เดิม)` หรือ `⚡ Staging Mode (Edge D1 5.0)`
+  * ช่องใส่ URL Staging API พร้อมปุ่ม **"ทดสอบเชื่อมต่อ (Test Connection)"** ตรวจเช็คสถานะ D1 Database และวัดค่า Ping Latency แบบ Realtime
+* **[`Sidebar.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Sidebar.jsx) & [`Header.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Header.jsx):**
+  * แสดงป้ายสถานะ `⚡ Staging Engine 5.0` เมื่ออยู่ในโหมดทดสอบ พร้อมคลิกเพื่อเปิดหน้าตั้งค่าได้ทันที
+* **[`backend-staging/demo/index.html`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/demo/index.html) & [`runLiveDemo.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/runLiveDemo.js):**
+  * Interactive Staging Demo Studio สำหรับทดลองบันทึกและจำลองระบบเสมือนจริงบนเบราว์เซอร์
+* **ผลการทดสอบ:** ผ่านการทดสอบ Unit Test ครบ 8/8 รายการ (`verifyStagingClient.js`) และ Vite Build ผ่าน 100%
+
+---
+
 ## 🧪 สรุปผลการทดสอบระบบ Staging Backend ทั้งหมด (All Tests Passed)
 
 ```text
@@ -80,8 +99,10 @@
 🧪 4. Auth & RBAC System (Phase 0.5):    23 Passed, 0 Failed
 🧪 5. Document CRUD Engine (Phase 1.1):  20 Passed, 0 Failed
 🧪 6. Google Sheets Sync (Phase 1.2):    16 Passed, 0 Failed
+🧪 7. Staging Client & Toggle (Phase 1.3): 8 Passed, 0 Failed
 
-🏆 รวมผลการทดสอบทั้งหมดของระบบ: 107 Passed, 0 Failed (100% Pass Rate)
+🏆 รวมผลการทดสอบทั้งหมดของระบบ: 115 Passed, 0 Failed (100% Pass Rate)
+🚀 Frontend Production Build:     ✓ 1,607 modules transformed (Built in 1.62s)
 ```
 
 ---
@@ -90,7 +111,7 @@
 
 | ส่วนประกอบระบบ | สถานะการตรวจสอบ | ผลลัพธ์ |
 |:---|:---:|:---|
-| **Frontend Code (`src/`)** | ไม่มีการแตะต้อง 100% | ✅ ปลอดภัย ผู้ใช้หน้าเว็บทำงานได้ตามปกติ |
+| **Frontend Production Mode** | ค่าเริ่มต้น Default เป็น Production 100% | ✅ ปลอดภัย ผู้ใช้หน้าเว็บทำงานได้ตามปกติ |
 | **Production Worker (`cloudflare-worker/`)** | ไม่มีการแตะต้อง 100% | ✅ ปลอดภัย API เดิมทำงานได้ตามปกติ |
 | **Google Apps Script Backend** | ไม่มีการแตะต้อง 100% | ✅ ปลอดภัย ซิงค์ข้อมูลลงชีตได้ตามปกติ |
 | **Google Sheets Database** | ไม่มีการแตะต้อง 100% | ✅ ปลอดภัย ข้อมูลจริงไม่ได้รับผลกระทบ |
@@ -108,9 +129,44 @@
 | **Phase 0.5** | JWT Authentication & RBAC (แฮชรหัสผ่าน PBKDF2 และระบบสิทธิ์ผู้ใช้) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 23/23 ข้อ |
 | **Phase 1.1** | Complete Document CRUD Engine (Receipts & Vouchers + DRC Calculation) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 20/20 ข้อ |
 | **Phase 1.2** | Google Sheets Background Sync Service (Replication ผ่าน `ctx.waitUntil`) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 16/16 ข้อ |
-| **Phase 1.3** | Frontend Migration / Toggle (สวิตช์หน้าบ้านเชื่อมต่อ Staging Backend API) | ⏳ **เป้าหมายถัดไป** | เชื่อมต่อ React Frontend กับ Edge API |
-| **Phase 2** | ระบบซื้อขาย Lot ยางพารา (Buy, Lot Grouping, Sell, P&L Dashboard) | ⏳ รอดำเนินการ | หลังจบ Phase 1 |
+| **Phase 1.3** | Frontend Migration / Toggle (สวิตช์หน้าบ้านเชื่อมต่อ Staging Backend API) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 8/8 ข้อ + Vite Build ผ่าน |
+| **Phase 2** | ระบบซื้อขาย Lot ยางพารา (Buy, Lot Grouping, Sell, P&L Dashboard) | ⏳ **เป้าหมายถัดไป** | เริ่มพัฒนา Phase 2.1 (Buying & Weighing) |
 | **Phase 3** | Automated R2 Backup & Monitoring (Sentry / Cloudflare Logpush) | ⏳ รอดำเนินการ | หลังจบ Phase 2 |
+
+---
+
+## 🔒 กฎเหล็กข้อบังคับ: ล็อค UX/UI 100% (Strict UX/UI Design Lock Policy)
+
+> ⚠️ **คำสั่งเด็ดขาดจากผู้ใช้ (User Constraint):**  
+> **"ห้ามแก้ไขในส่วนของ UX/UI เพราะพึงพอใจแล้ว"**
+
+* **ขอบเขตการล็อค:**
+  1. **หน้าตาและดีไซน์ทั้งหมด (Layout & Styles):** หน้าใบเสร็จรับเงิน (`ReceiptForm`), หน้าใบสำคัญจ่าย (`VoucherForm`), ปฏิทินตัวกรองประวัติ (`HistoryModal`), แบบฟอร์มพิมพ์ A4 (`PrintReceipt`, `PrintVoucher`), หน้าจัดการบัญชีธนาคาร (`BankAccountManagement`), เมนูแถบข้าง (`Sidebar`), ฟอนต์, สี, ขนาดตัวอักษร, และโครงสร้างหน้าเว็บทั้งหมด **ล็อคตายตัว 100% ห้ามเปลี่ยนแปลง**
+  2. **ทิศทางการพัฒนาต่อจากนี้ (Phase 2 เป็นต้นไป):** มุ่งเน้นเฉพาะงานส่วน **Backend / Business Logic / Cloudflare D1 Schema / Restful API / Calculation Engine / Data Sync** เท่านั้น โดยไม่แก้ไขดีไซน์หรือพฤติกรรมหน้าจอที่ผู้ใช้พึงพอใจแล้วเด็ดขาด
+
+---
+
+## 📦 รายการไฟล์และขั้นตอนการนำขึ้น GitHub (Git Commit & Push Guide)
+
+ในการอัปเดตครั้งนี้ มีไฟล์ที่ถูกสร้างใหม่และปรับปรุงทั้งหมด **8 ไฟล์** บน Branch `feature/backend-staging`:
+
+| ชื่อไฟล์ | สถานะ | หน้าที่และการทำงาน |
+|:---|:---:|:---|
+| [`src/services/stagingApiClient.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/stagingApiClient.js) | `NEW` | โมดูล Client เชื่อมต่อ Staging Worker API พร้อมฉีด Idempotency Key (UUIDv4) |
+| [`backend-staging/src/test/verifyStagingClient.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyStagingClient.js) | `NEW` | ชุดทดสอบ Unit Test สำหรับ Staging Client (ผ่าน 8/8 ข้อ) |
+| [`src/services/storageService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/storageService.js) | `MODIFIED` | ตัวสลับ Routing คำขอ `saveReceipt`, `cancelReceipt`, `saveVoucher`, `cancelVoucher` อัตโนมัติ |
+| [`src/components/SettingsModal.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/SettingsModal.jsx) | `MODIFIED` | ตัวสลับโหมด Backend Engine (Production / Staging 5.0) พร้อมปุ่มทดสอบ Health Check & Latency |
+| [`src/components/Sidebar.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Sidebar.jsx) | `MODIFIED` | เพิ่มป้ายสถานะ `⚡ Staging Engine 5.0` แจ้งเตือนเมื่ออยู่ในโหมดทดสอบ |
+| [`src/components/Header.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Header.jsx) | `MODIFIED` | เพิ่มป้ายสถานะ Staging และปุ่มลัดเข้าหน้าตั้งค่า |
+| [`prd.md`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/prd.md) | `MODIFIED` | เอกสาร PRD เวอร์ชัน 5.0 ฉบับสมบูรณ์ พร้อมข้อกำหนด Phase 2 และนโยบายล็อค UX/UI |
+| [`progress.md`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/progress.md) | `MODIFIED` | เอกสารรายงานความคืบหน้ารวมทุกงานใน Session นี้ |
+
+### 💻 คำสั่งสำหรับ Commit และ Push ขึ้น GitHub:
+```bash
+git add .
+git commit -m "feat(phase-1.3): complete frontend migration, staging client, backend engine toggle & prd documentation"
+git push origin feature/backend-staging
+```
 
 ---
 *จัดทำและบันทึกความคืบหน้าอย่างเป็นทางการ ณ วันที่ 11 กันยายน 2569 (2026-09-11)*

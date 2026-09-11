@@ -3,7 +3,7 @@
 > **ระบบออกใบเสร็จรับเงิน ใบสำคัญจ่าย บันทึกบัญชี และระบบซื้อขาย Lot ยางพารา**  
 > **บริษัท ศรีสุข พูนทรัพย์ ยางพารา จำกัด**  
 > **เวอร์ชันเอกสาร:** 5.0  
-> **วันที่อัปเดตล่าสุด:** 6 กันยายน 2569 (2026-09-06)
+> **วันที่อัปเดตล่าสุด:** 11 กันยายน 2569 (2026-09-11)
 
 ---
 
@@ -157,6 +157,19 @@
   - `POST /api/v1/sync/vouchers/:voucherNo` — สั่งซิงค์ใบสำคัญจ่ายไปยัง Google Sheets ด้วยตนเอง
 - **ผลการทดสอบ:** ผ่านการทดสอบ Unit Test ครบ 16/16 รายการ (`verifyGoogleSheetsSync.js`)
 
+### 4.7 Frontend Migration & Backend Engine Toggle (Phase 1.3 ✅ เสร็จสมบูรณ์)
+- **ตำแหน่งไฟล์:**
+  - [`src/services/stagingApiClient.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/stagingApiClient.js) — Staging API Client พร้อมฉีด `X-Idempotency-Key` (UUIDv4) อัตโนมัติ
+  - [`src/services/storageService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/storageService.js) — สลับเส้นทางการบันทึก/ยกเลิกเอกสารอัตโนมัติตามโหมด `apiMode`
+  - [`src/components/SettingsModal.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/SettingsModal.jsx) — ตัวสลับ Backend Engine (Production vs Staging 5.0) พร้อมปุ่มทดสอบ Health Check + วัด Latency
+  - [`src/components/Sidebar.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Sidebar.jsx) & [`src/components/Header.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Header.jsx) — ป้ายสถานะ `⚡ Staging Mode 5.0`
+  - [`backend-staging/demo/index.html`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/demo/index.html) — Interactive Staging Demo Studio
+- **หลักการทำงาน:**
+  - **Zero-Risk Preservation:** ค่าเริ่มต้นเป็น `'production'` เสมอ เพื่อให้ผู้ใช้งานเดิมไม่ได้รับผลกระทบใดๆ
+  - **Seamless Switching:** เมื่อเปิดโหมด Staging หน้าบ้านจะส่งคำขอตรงเข้า Cloudflare Worker Edge D1 Backend พร้อมรับมือการคำนวณ DRC และบันทึกลง D1
+  - **Interactive Health Test:** ผู้ดูแลระบบสามารถกดทดสอบการเชื่อมต่อ API เช็คความพร้อมของ D1 Database และวัดค่า Ping Latency ได้จากหน้าตั้งค่า
+- **ผลการทดสอบ:** ผ่านการทดสอบ Unit Test ครบ 8/8 รายการ (`verifyStagingClient.js`) และ Vite Build ผ่านสมบูรณ์แบบ 100%
+
 ---
 
 ## 5. 🎨 มาตรฐาน UX/UI & การออกแบบระบบ
@@ -167,6 +180,8 @@
 4. **Full-height Workspace Layout:** หน้าจอตารางขยายเต็มความสูง ล็อคหัวตาราง `sticky top-0`
 5. **ระบบ Filter Bar & Pagination:** กรองตามสถานะ, ช่วงเวลาด่วน, ปฏิทิน, ค้นหาเรียลไทม์ และเลือกขนาดหน้าได้ (10/20/50/100 แถว)
 6. **Leading Zero Protection:** ป้องกันเลข 0 หายด้วยการใส่ `'` ในฝั่งชีต และล้างออกเพื่อแสดงผลตัวเลขสะอาดบนหน้าเว็บ
+7. **Environment Badge:** ป้ายกำกับสถานะระบบ Staging ชัดเจน เพื่อความโปร่งใสและปลอดภัย
+8. **🔒 Strict UX/UI Design Lock Policy (ล็อคการออกแบบ UX/UI 100%):** หน้าตา ดีไซน์ เลย์เอาต์ สี ฟอนต์ และการจัดวางของทุกหน้าจอในระบบ (`ReceiptForm`, `VoucherForm`, `HistoryModal`, `Print Templates`, `BankAccountManagement`, `Sidebar`) ถือเป็นข้อสรุปที่สมบูรณ์และพึงพอใจแล้ว **ห้ามแก้ไขหรือเปลี่ยนแปลงเด็ดขาด** การพัฒนาในเฟสต่อๆ ไป (รวมถึง Phase 2) จะดำเนินการเฉพาะฝั่ง Backend, Database Schema, Calculation Engine และ API โดยไม่แตะต้อง UX/UI เดิม
 
 ---
 
@@ -178,6 +193,103 @@
 | **v2.0** | 2026-08-14 | ระบบพิมพ์ A4, ระบบ Login และระบุตัวตนพนักงาน (Cashier) |
 | **v3.0** | 2026-08-28 | เพิ่มระบบใบสำคัญจ่าย, ระบบบัญชีธนาคาร `Master_Banks`, ไอคอนทางการ, แยกธีมสี Emerald/Rose |
 | **v4.0** | 2026-08-30 | เพิ่มระบบ Filter Bar ครบวงจร, Dynamic Pagination, ลิงก์ดูรายละเอียด, Leading Zero Protection, SSOT |
-| **v5.0** | 2026-09-11 | **ยกระดับสู่ Enterprise Edge Backend (Cloudflare Workers + D1 Database):**<br>1. ออกแบบสถาปัตยกรรมแยกสภาพแวดล้อม Staging แบบ Zero-Impact ต่อ Production 100%<br>2. สร้างและตรวจสอบตาราง Normalized D1 ทั้ง 9 ตารางบน Cloudflare D1 Studio (`receipt_db_staging`)<br>3. **Atomic Sequence Engine (Phase 0.2):** รันเลข `YYMMXXXX` + Manual Seed (13 Passed)<br>4. **Idempotency Guard (Phase 0.3):** ป้องกันการกดเบิ้ลด้วย UUID + SHA-256 (15 Passed)<br>5. **Immutable Audit Logging (Phase 0.4):** บันทึกแบบ Blockchain-like Hash Chaining (20 Passed)<br>6. **Authentication & RBAC (Phase 0.5):** แฮช PBKDF2/SHA-256 + Web Crypto JWT (23 Passed)<br>7. **Document CRUD Engine (Phase 1.1):** จัดการใบเสร็จและใบสำคัญจ่ายพร้อมคำนวณ DRC (20 Passed)<br>8. **Google Sheets Background Sync (Phase 1.2):** ซิงค์ข้อมูลลงชีตแบบ Non-blocking ผ่าน `ctx.waitUntil` (16 Passed)<br>🏆 **สรุปภาพรวม:** ผ่านการทดสอบครบ 107/107 รายการ (100% Pass Rate) |
+| **v5.0** | 2026-09-11 | **ยกระดับสู่ Enterprise Edge Backend (Cloudflare Workers + D1 Database):**<br>1. ออกแบบสถาปัตยกรรมแยกสภาพแวดล้อม Staging แบบ Zero-Impact ต่อ Production 100%<br>2. สร้างและตรวจสอบตาราง Normalized D1 ทั้ง 9 ตารางบน Cloudflare D1 Studio (`receipt_db_staging`)<br>3. **Atomic Sequence Engine (Phase 0.2):** รันเลข `YYMMXXXX` + Manual Seed (13 Passed)<br>4. **Idempotency Guard (Phase 0.3):** ป้องกันการกดเบิ้ลด้วย UUID + SHA-256 (15 Passed)<br>5. **Immutable Audit Logging (Phase 0.4):** บันทึกแบบ Blockchain-like Hash Chaining (20 Passed)<br>6. **Authentication & RBAC (Phase 0.5):** แฮช PBKDF2/SHA-256 + Web Crypto JWT (23 Passed)<br>7. **Document CRUD Engine (Phase 1.1):** จัดการใบเสร็จและใบสำคัญจ่ายพร้อมคำนวณ DRC (20 Passed)<br>8. **Google Sheets Background Sync (Phase 1.2):** ซิงค์ข้อมูลลงชีตแบบ Non-blocking ผ่าน `ctx.waitUntil` (16 Passed)<br>9. **Frontend Migration / Toggle (Phase 1.3):** สวิตช์สลับ Production/Staging ในหน้าตั้งค่า, Staging API Client, Health Check พร้อมวัด Latency, และป้ายสถานะ Staging ใน Sidebar/Header (8 Passed)<br>🏆 **สรุปภาพรวม:** ผ่านการทดสอบครบ 115/115 รายการ (100% Pass Rate) และ Vite Build ผ่านสมบูรณ์ |
+
+---
+
+## 7. 🌿 แผนสถาปัตยกรรมและข้อกำหนด Phase 2: ระบบซื้อขาย Lot ยางพารา & สรุปกำไร-ขาดทุน
+
+### 7.1 วัตถุประสงค์และภาพรวมกระบวนการธุรกิจ
+เพื่อยกระดับการบริหารสต็อกยางพาราและการวิเคราะห์ผลกำไร-ขาดทุนจริงจากการส่งขายโรงงานอุตสาหกรรมแปรรูป (เช่น NER, บมจ. ไทยฮั้ว, บจก. ยางพาราไทย) ระบบจะติดตามยางพาราตั้งแต่ขั้นตอนรับซื้อหน้าลาน, การรวม Lot ยาง, การส่งขายโรงงาน, และการเปรียบเทียบผลตรวจแล็บเพื่อหารายได้และกำไรสุทธิแบบเรียลไทม์
+
+### 7.2 แผนการแบ่ง 4 ข้อย่อย (Sub-phases 2.1 – 2.4)
+1. **Phase 2.1: Inbound Weighing & Purchase Engine (ระบบรับซื้อและชั่งน้ำหนักยางพารา)**
+   - บันทึกการชั่งซื้อยางจากชาวสวน/ลูกค้า (น้ำหนักรถเข้า Gross, รถออก Tare, สุทธิ Net)
+   - บันทึกประเภทเนื้อยาง (`น้ำยางสด`, `ยางก้อนถ้วย`, `ขี้ยาง`, `ยางแผ่นรมควัน RSS`, `เศษยาง`)
+   - คำนวณเนื้อยางแห้งตาม %DRC และคำนวณยอดเงินซื้อสุทธิ
+   - ตาราง D1: `rubber_purchases`
+2. **Phase 2.2: Lot Grouping & Aggregation Engine (ระบบรวมกลุ่มและจัดทำ Lot ยาง)**
+   - เลือกรวมบิลชั่งซื้อหลายเที่ยวเข้าเป็น 1 Lot เพื่อเตรียมส่งโรงงาน
+   - คำนวณน้ำหนักรวมของ Lot และต้นทุนรวม
+   - คำนวณต้นทุนเฉลี่ยถ่วงน้ำหนัก (Weighted Average Cost / kg)
+   - คำนวณค่า %DRC เฉลี่ยถ่วงน้ำหนักของทั้ง Lot
+   - ตาราง D1: `rubber_lots`, `rubber_lot_items`
+3. **Phase 2.3: Outbound Factory Sales & Reconciliation Engine (ระบบส่งขายโรงงานและเทียบผลตรวจ)**
+   - บันทึกการส่งมอบให้โรงงานแปรรูปปลายทาง
+   - บันทึกผลชั่งจริงหน้าโรงงาน (Factory Weight)
+   - บันทึกผลแล็บ %DRC โรงงาน และราคาตกลงขายต่อ กก.
+   - บันทึกค่าใช้จ่ายขนส่งและค่าธรรมเนียมโรงงาน
+   - ตาราง D1: `rubber_sales`
+4. **Phase 2.4: Real-time P&L Analytics & Dashboard (ระบบคำนวณกำไร-ขาดทุนและสรุปภาพรวม)**
+   - วิเคราะห์ส่วนต่างน้ำหนักหดตัว (Weight Loss / Shrinkage = น้ำหนักต้นทาง - น้ำหนักโรงงาน)
+   - วิเคราะห์เปอร์เซ็นต์เนื้อยางหาย (% DRC Drop = DRC ต้นทาง - DRC โรงงาน)
+   - คำนวณกำไร-ขาดทุนสุทธิ (Net Profit / Loss): $\text{กำไรสุทธิ} = \text{รายได้จากการขาย} - \text{ต้นทุนซื้อรวม} - \text{ค่าขนส่งและค่าใช้จ่าย}$
+   - วิเคราะห์อัตรากำไรต่อ กก. (Margin / kg) และ Margin %
+   - หน้าสรุปรายงานเชิงวิเคราะห์ (P&L Dashboard)
+
+### 7.3 โครงสร้างตาราง D1 Database สำหรับ Phase 2 (Normalized Extension)
+```sql
+-- 10. Rubber Purchases (บันทึกการชั่งซื้อยางหน้าลาน)
+CREATE TABLE IF NOT EXISTS rubber_purchases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    purchase_no TEXT NOT NULL UNIQUE,
+    purchase_date TEXT NOT NULL,
+    seller_name TEXT NOT NULL,
+    rubber_type TEXT NOT NULL,
+    gross_weight REAL NOT NULL DEFAULT 0,
+    tare_weight REAL NOT NULL DEFAULT 0,
+    net_weight REAL NOT NULL DEFAULT 0,
+    drc_percent REAL DEFAULT 0,
+    dry_weight REAL NOT NULL DEFAULT 0,
+    unit_price REAL NOT NULL DEFAULT 0,
+    total_amount REAL NOT NULL DEFAULT 0,
+    lot_id INTEGER REFERENCES rubber_lots(id),
+    status TEXT NOT NULL DEFAULT 'UNASSIGNED',
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now', '+7 hours'))
+);
+
+-- 11. Rubber Lots (หัวตารางรวม Lot ยางพารา)
+CREATE TABLE IF NOT EXISTS rubber_lots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lot_no TEXT NOT NULL UNIQUE,
+    lot_name TEXT NOT NULL,
+    rubber_type TEXT NOT NULL,
+    total_purchase_weight REAL NOT NULL DEFAULT 0,
+    total_purchase_cost REAL NOT NULL DEFAULT 0,
+    avg_purchase_cost_kg REAL NOT NULL DEFAULT 0,
+    avg_purchase_drc REAL NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN', 'LOCKED', 'SHIPPED', 'COMPLETED')),
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now', '+7 hours')),
+    updated_at TEXT NOT NULL DEFAULT (DATETIME('now', '+7 hours'))
+);
+
+-- 12. Rubber Sales (บันทึกการส่งขายโรงงานและผลแล็บจริง)
+CREATE TABLE IF NOT EXISTS rubber_sales (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sale_no TEXT NOT NULL UNIQUE,
+    lot_id INTEGER NOT NULL REFERENCES rubber_lots(id),
+    factory_name TEXT NOT NULL,
+    sale_date TEXT NOT NULL,
+    factory_weight REAL NOT NULL DEFAULT 0,
+    factory_drc REAL NOT NULL DEFAULT 0,
+    selling_price_kg REAL NOT NULL DEFAULT 0,
+    gross_revenue REAL NOT NULL DEFAULT 0,
+    transport_cost REAL NOT NULL DEFAULT 0,
+    other_fees REAL NOT NULL DEFAULT 0,
+    net_revenue REAL NOT NULL DEFAULT 0,
+    net_profit REAL NOT NULL DEFAULT 0,
+    profit_margin_kg REAL NOT NULL DEFAULT 0,
+    weight_shrinkage_kg REAL NOT NULL DEFAULT 0,
+    drc_drop_percent REAL NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now', '+7 hours'))
+);
+```
+
+### 7.4 กลยุทธ์การทดสอบแบบ Zero-Risk & Zero-Impact ต่อระบบเดิม
+1. **Isolated Test Scripts:** ทดสอบความถูกต้องของตรรกะคำนวณทั้งหมดผ่าน Unit Test Suites ใน `backend-staging/src/test/`
+2. **Interactive Demo Studio:** ทำหน้าจอจำลอง HTML ทดลองเล่นได้ในเบราว์เซอร์ก่อน โดยไม่ต้องรันหรือแก้ไขเว็บจริง
+3. **Feature Flag Control:** มีปุ่มสลับเปิด-ปิดระบบ Lot ในหน้าตั้งค่า โดยค่าเริ่มต้นเป็นปิด (Disabled) เมนูจะไม่แสดงผลจนกว่าผู้ใช้จะเปิดเพื่อทดลอง
+4. **Strict UX/UI Lock:** ไม่แก้ไขหน้าจอ `ReceiptForm`, `VoucherForm`, `HistoryModal`, `PrintReceipt`, `PrintVoucher`, `BankAccountManagement` แม้แต่บรรทัดเดียว
+
 
 
