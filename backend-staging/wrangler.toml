@@ -5,6 +5,7 @@ compatibility_date = "2024-01-01"
 [vars]
 ENVIRONMENT = "staging"
 JWT_EXPIRATION_HOURS = "24"
+GOOGLE_SHEETS_WEBHOOK = "https://script.google.com/macros/s/AKfycbyg4uurkB24tvAUP33Xaxgb5JXyPZK06yPCTKnQUDIGSj2lidTmi-T8qx3MJ7ob938d/exec"
 
 # Cloudflare D1 Database Binding สำหรับ Staging Environment
 [[d1_databases]]

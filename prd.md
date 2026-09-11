@@ -105,13 +105,57 @@
 - **การตรวจจับความผิดปกติ (Payload Mismatch):** หากมีการนำ Key เดิมมาสวมรอยส่งข้อมูลต่างไปจากเดิม ระบบจะปฏิเสธคำขอทันทีด้วยรหัส HTTP `409 Conflict (IDEMPOTENCY_PAYLOAD_MISMATCH)`
 - **ผลการทดสอบ:** ผ่านการทดสอบ Unit Test ครบ 15/15 รายการ (`verifyIdempotency.js`)
 
-### 4.3 Immutable Audit Trail (Phase 0.4 ⏳ เป้าหมายถัดไป)
-- บันทึกประวัติการเงินลงตาราง `audit_logs` แบบ Insert-Only
-- คำนวณ SHA-256 Hash Chaining (`record_hash = SHA256(prev_hash + data)`) สร้างสายใยข้อมูลบล็อกเชน ป้องกันการแอบแก้ไขหรือลบประวัติย้อนหลัง
+### 4.3 Immutable Audit Trail (Phase 0.4 ✅ เสร็จสมบูรณ์)
+- **ตำแหน่งไฟล์:** [`backend-staging/src/services/auditService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/auditService.js)
+- **หลักการทำงาน:** บันทึกประวัติกิจกรรมทางการเงินลงในตาราง `audit_logs` แบบ Insert-Only โดยแต่ละรายการจะดึงรหัส SHA-256 ของรายการก่อนหน้า (`prev_hash`) มาร้อยเรียงต่อกันเป็นสายโซ่ข้อมูลแบบบล็อกเชน (Blockchain-like Hash Chaining)
+- **ระบบตรวจจับการทุจริตและการแอบแก้ไขย้อนหลัง (Tamper Detection Engine):** ฟังก์ชัน `verifyChainIntegrity` ทำการตรวจสอบความถูกต้องของสายโซ่ตั้งแต่แถวแรกจนถึงแถวล่าสุด หากมีการแอบแก้ไขตัวเลข หรือลบแถวทิ้ง ระบบจะตรวจพบและชี้เป้าระบุ ID ที่เสียหายได้ทันที
+- **API Endpoints:**
+  - `GET /api/v1/audit/verify` — ตรวจสอบความสมบูรณ์และโปร่งใสของสายใยข้อมูล (สำหรับผู้สอบบัญชี)
+  - `GET /api/v1/audit/logs` — ค้นหาและดูประวัติย้อนหลัง พร้อมระบบ Filter และ Pagination
+- **ผลการทดสอบ:** ผ่านการทดสอบ Unit Test ครบ 20/20 รายการ (`verifyAuditLog.js`)
 
-### 4.4 Authentication & RBAC System (Phase 0.5 ⏳ เป้าหมายถัดไป)
-- แฮชรหัสผ่านด้วย PBKDF2/SHA-256 + Unique Salt
-- การยืนยันตัวตนด้วย JSON Web Token (JWT) กำหนดอายุสั้น และตรวจสอบสิทธิ์ผู้ใช้ตามบทบาท (Role-Based Access Control)
+### 4.4 Authentication & RBAC System (Phase 0.5 ✅ เสร็จสมบูรณ์)
+- **ตำแหน่งไฟล์:** [`backend-staging/src/services/authService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/authService.js)
+- **หลักการทำงาน:** ระบบยืนยันตัวตนและควบคุมการเข้าถึงระดับองค์กรโดยใช้ Native Web Crypto API ในตัว Cloudflare Worker (Zero External Library)
+  - **Password Security:** แฮชรหัสผ่านด้วย PBKDF2/SHA-256 จำนวน 100,000 รอบ พร้อมสุ่ม Salt 16 ไบต์ (32 ตัวอักษร) ประจำตัวผู้ใช้แต่ละคน ป้องกัน Rainbow Table Attack
+  - **Native Web Crypto JWT:** ออกและตรวจสอบโทเค็น JSON Web Token (HMAC-SHA256) พร้อมกำหนดอายุโทเค็น (24 ชั่วโมง)
+  - **Role-Based Access Control (RBAC):** กำหนดสิทธิ์ตามบทบาท (`Admin`, `Manager`, `User`/`Cashier`) พร้อม Middleware ตรวจสอบสิทธิ์ `requireAuth` และ `requireRole`
+  - **Genesis Admin Seeding:** ระบบสร้างผู้ดูแลระบบคนแรกของบริษัท (`seedAdminUser`) แบบปลอดภัย
+- **API Endpoints:**
+  - `POST /api/v1/auth/seed-admin` — สร้างแอดมินคนแรกของระบบ
+  - `POST /api/v1/auth/login` — เข้าสู่ระบบ ตรวจสอบรหัสผ่าน และรับ JWT Token
+  - `GET /api/v1/auth/me` — ดึงข้อมูลโปรไฟล์ผู้ใช้ปัจจุบันจาก Token
+  - `POST /api/v1/auth/users` — แอดมินสร้างบัญชีพนักงานใหม่
+- **ผลการทดสอบ:** ผ่านการทดสอบ Unit Test ครบ 23/23 รายการ (`verifyAuth.js`)
+
+### 4.5 Complete Document CRUD Engine (Phase 1.1 ✅ เสร็จสมบูรณ์)
+- **ตำแหน่งไฟล์:** [`backend-staging/src/services/documentService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/documentService.js)
+- **หลักการทำงาน:** จัดการเอกสารใบเสร็จรับเงิน (Receipts) และใบสำคัญจ่าย (Payment Vouchers) ครบวงจรบนฐานข้อมูล Normalized D1 (Header + Items Tables)
+  - **ระบบคำนวณราคายางพารา:** คำนวณยอดเงินสุทธิอัตโนมัติรองรับน้ำหนัก, ราคาต่อหน่วย, DRC%, และส่วนลดเพิ่มลด (`(quantity * unitPrice * DRC%) - discount`)
+  - **ระบบบันทึกใบสำคัญจ่าย:** จัดการรายการจ่ายเงินหลายรายการย่อย เชื่อมโยงบัญชีบริษัทและบัญชีปลายทาง
+  - **ระบบยกเลิกเอกสารแบบมีประวัติ (Soft Cancel):** ปรับสถานะเป็น "ยกเลิก" บันทึกเหตุผล ผู้ยกเลิก และเวลา โดยไม่ลบประวัติเดิม พร้อมระบบป้องกันการกดยกเลิกซ้ำ
+  - **การประสานความปลอดภัย:** เชื่อมต่อกับ Atomic Sequence Engine, Idempotency Guard (ป้องกัน Double Submission), และ Immutable Audit Trail ทุกขั้นตอน
+- **API Endpoints:**
+  - `POST /api/v1/receipts` — ออกใบเสร็จรับเงินใหม่ (Idempotent)
+  - `GET /api/v1/receipts` — ค้นหาและดูรายการใบเสร็จ (Pagination & Filters)
+  - `GET /api/v1/receipts/:receiptNo` — ดูรายละเอียดใบเสร็จพร้อมรายการสินค้า
+  - `POST /api/v1/receipts/:receiptNo/cancel` — ขอยกเลิกใบเสร็จรับเงิน
+  - `POST /api/v1/vouchers` — ออกใบสำคัญจ่ายใหม่ (Idempotent)
+  - `GET /api/v1/vouchers` — ค้นหาและดูรายการใบสำคัญจ่าย (Pagination & Filters)
+  - `GET /api/v1/vouchers/:voucherNo` — ดูรายละเอียดใบสำคัญจ่าย
+  - `POST /api/v1/vouchers/:voucherNo/cancel` — ขอยกเลิกใบสำคัญจ่าย
+- **ผลการทดสอบ:** ผ่านการทดสอบ Unit Test ครบ 20/20 รายการ (`verifyDocuments.js`)
+
+### 4.6 Google Sheets Background Sync Service (Phase 1.2 ✅ เสร็จสมบูรณ์)
+- **ตำแหน่งไฟล์:** [`backend-staging/src/services/googleSheetsSyncService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/googleSheetsSyncService.js)
+- **หลักการทำงาน:** ซิงค์ข้อมูลจาก Cloudflare Worker ไปยัง Google Sheets แบบ Asynchronous / Non-blocking ด้วย `ctx.waitUntil(...)`
+  - **Sub-50ms Response Time:** ผู้ใช้งานได้รับผลการบันทึกเอกสารทันทีหลังจากเขียนลง D1 โดยไม่ต้องรอการเขียนลง Google Sheets (1-3 วินาที)
+  - **Schema Mapping:** แปลงโครงสร้าง Normalized Header-Items ใน D1 เป็น 20 คอลัมน์สำหรับใบเสร็จรับเงิน และ 18 คอลัมน์สำหรับใบสำคัญจ่ายตามฟอร์แมตเดิมของ Google Sheets อย่างแม่นยำ
+  - **Resilience & Timeout Guard:** ดักจับข้อผิดพลาดและมีระบบ AbortController Timeout ไม่ให้กระทบการทำงานหลักของระบบ
+- **API Endpoints:**
+  - `POST /api/v1/sync/receipts/:receiptNo` — สั่งซิงค์ใบเสร็จไปยัง Google Sheets ด้วยตนเอง
+  - `POST /api/v1/sync/vouchers/:voucherNo` — สั่งซิงค์ใบสำคัญจ่ายไปยัง Google Sheets ด้วยตนเอง
+- **ผลการทดสอบ:** ผ่านการทดสอบ Unit Test ครบ 16/16 รายการ (`verifyGoogleSheetsSync.js`)
 
 ---
 
@@ -134,5 +178,6 @@
 | **v2.0** | 2026-08-14 | ระบบพิมพ์ A4, ระบบ Login และระบุตัวตนพนักงาน (Cashier) |
 | **v3.0** | 2026-08-28 | เพิ่มระบบใบสำคัญจ่าย, ระบบบัญชีธนาคาร `Master_Banks`, ไอคอนทางการ, แยกธีมสี Emerald/Rose |
 | **v4.0** | 2026-08-30 | เพิ่มระบบ Filter Bar ครบวงจร, Dynamic Pagination, ลิงก์ดูรายละเอียด, Leading Zero Protection, SSOT |
-| **v5.0** | 2026-09-07 | **ยกระดับสู่ Enterprise Edge Backend (Cloudflare Workers + D1 Database):**<br>1. ออกแบบสถาปัตยกรรมใหม่แยกสภาพแวดล้อม Staging เพื่อ Zero-Impact ต่อ Production<br>2. ออกแบบและสร้างโครงสร้างตาราง D1 ทั้ง 9 ตารางบน Cloudflare D1 Studio (`receipt_db_staging`)<br>3. พัฒนาระบบ **Atomic Sequence Engine (Phase 0.2)** รันเลข `YYMMXXXX` + Manual Seed (Unit test ผ่าน 13/13)<br>4. พัฒนาระบบ **Idempotency Guard (Phase 0.3)** ป้องกันการกดเบิ้ล/ส่งซ้ำ ด้วย UUID + SHA-256 (Unit test ผ่าน 15/15)<br>5. ติดตั้ง Node.js v24 LTS บน macOS พร้อมระบบทดสอบอัตโนมัติ |
+| **v5.0** | 2026-09-11 | **ยกระดับสู่ Enterprise Edge Backend (Cloudflare Workers + D1 Database):**<br>1. ออกแบบสถาปัตยกรรมแยกสภาพแวดล้อม Staging แบบ Zero-Impact ต่อ Production 100%<br>2. สร้างและตรวจสอบตาราง Normalized D1 ทั้ง 9 ตารางบน Cloudflare D1 Studio (`receipt_db_staging`)<br>3. **Atomic Sequence Engine (Phase 0.2):** รันเลข `YYMMXXXX` + Manual Seed (13 Passed)<br>4. **Idempotency Guard (Phase 0.3):** ป้องกันการกดเบิ้ลด้วย UUID + SHA-256 (15 Passed)<br>5. **Immutable Audit Logging (Phase 0.4):** บันทึกแบบ Blockchain-like Hash Chaining (20 Passed)<br>6. **Authentication & RBAC (Phase 0.5):** แฮช PBKDF2/SHA-256 + Web Crypto JWT (23 Passed)<br>7. **Document CRUD Engine (Phase 1.1):** จัดการใบเสร็จและใบสำคัญจ่ายพร้อมคำนวณ DRC (20 Passed)<br>8. **Google Sheets Background Sync (Phase 1.2):** ซิงค์ข้อมูลลงชีตแบบ Non-blocking ผ่าน `ctx.waitUntil` (16 Passed)<br>🏆 **สรุปภาพรวม:** ผ่านการทดสอบครบ 107/107 รายการ (100% Pass Rate) |
+
 

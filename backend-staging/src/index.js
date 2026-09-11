@@ -25,6 +25,22 @@ import {
   requireAuth,
   requireRole
 } from './services/authService.js';
+import {
+  createReceipt,
+  getReceiptByNo,
+  cancelReceipt,
+  listReceipts,
+  createVoucher,
+  getVoucherByNo,
+  cancelVoucher,
+  listVouchers
+} from './services/documentService.js';
+import {
+  syncReceiptToGoogleSheets,
+  syncCancelReceiptToGoogleSheets,
+  syncVoucherToGoogleSheets,
+  syncCancelVoucherToGoogleSheets
+} from './services/googleSheetsSyncService.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -51,7 +67,7 @@ export default {
           environment: env.ENVIRONMENT || 'staging',
           service: 'receipt-backend-staging',
           d1BindingReady: d1Connected,
-          phase: 'Phase 0.5 - Authentication & RBAC Online',
+          phase: 'Phase 1.2 - Google Sheets Background Sync Online',
           timestamp: new Date().toISOString()
         }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -280,11 +296,214 @@ export default {
         return successResponse(corsHeaders, newUser, 'สร้างบัญชีผู้ใช้งานใหม่สำเร็จ');
       }
 
+      // 5. Receipts Management Endpoints (Phase 1.1)
+
+      // 5.1 POST /api/v1/receipts - สร้างใบเสร็จรับเงินใหม่ (พร้อม Idempotency Guard)
+      if (path === '/api/v1/receipts' && request.method === 'POST') {
+        return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
+          const actorEmail = request.headers.get('X-User-Email') || 'cashier@srisuk-rubber.com';
+          const actorRole = request.headers.get('X-User-Role') || 'Cashier';
+          const ipAddress = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+
+          const receipt = await createReceipt(env.DB, body, {
+            actorEmail,
+            actorRole,
+            ipAddress
+          });
+
+          // Phase 1.2: Asynchronous background sync to Google Sheets (Non-blocking)
+          if (ctx && typeof ctx.waitUntil === 'function') {
+            ctx.waitUntil(
+              syncReceiptToGoogleSheets(receipt, env).catch((err) =>
+                console.warn('Background Sheets sync failed for receipt:', receipt.receipt_no, err.message)
+              )
+            );
+          }
+
+          return successResponse(corsHeaders, receipt, 'สร้างใบเสร็จรับเงินสำเร็จ', 201);
+        });
+      }
+
+      // 5.2 GET /api/v1/receipts - ค้นหาและดูรายการใบเสร็จรับเงิน (Pagination & Filters)
+      if (path === '/api/v1/receipts' && request.method === 'GET') {
+        const search = url.searchParams.get('search') || '';
+        const status = url.searchParams.get('status') || '';
+        const startDate = url.searchParams.get('startDate') || '';
+        const endDate = url.searchParams.get('endDate') || '';
+        const cashierName = url.searchParams.get('cashierName') || '';
+        const page = parseInt(url.searchParams.get('page') || '1', 10);
+        const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10);
+
+        const listData = await listReceipts(env.DB, {
+          search,
+          status,
+          startDate,
+          endDate,
+          cashierName,
+          page,
+          pageSize
+        });
+
+        return successResponse(corsHeaders, listData);
+      }
+
+      // 5.3 GET /api/v1/receipts/:receiptNo - ดึงข้อมูลใบเสร็จใบเดี่ยวพร้อมรายการสินค้า
+      if (path.startsWith('/api/v1/receipts/') && request.method === 'GET') {
+        const receiptNo = decodeURIComponent(path.replace('/api/v1/receipts/', '').trim());
+        const receipt = await getReceiptByNo(env.DB, receiptNo);
+
+        if (!receipt) {
+          return errorResponse(corsHeaders, `ไม่พบใบเสร็จรับเงินเลขที่ ${receiptNo}`, 404);
+        }
+
+        return successResponse(corsHeaders, receipt);
+      }
+
+      // 5.4 POST /api/v1/receipts/:receiptNo/cancel - ขอยกเลิกใบเสร็จรับเงิน
+      if (path.startsWith('/api/v1/receipts/') && path.endsWith('/cancel') && request.method === 'POST') {
+        return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
+          const receiptNo = decodeURIComponent(path.replace('/api/v1/receipts/', '').replace('/cancel', '').trim());
+          const reason = body.reason || body.cancelReason;
+          const cancelledByEmail = request.headers.get('X-User-Email') || 'admin@srisuk-rubber.com';
+          const cancelledByName = request.headers.get('X-User-Name') || 'ผู้ดูแลระบบ';
+
+          const cancelled = await cancelReceipt(env.DB, receiptNo, {
+            reason,
+            cancelledByEmail,
+            cancelledByName
+          });
+
+          // Phase 1.2: Asynchronous background sync to Google Sheets (Non-blocking)
+          if (ctx && typeof ctx.waitUntil === 'function') {
+            ctx.waitUntil(
+              syncCancelReceiptToGoogleSheets(receiptNo, reason, env).catch((err) =>
+                console.warn('Background Sheets sync failed for cancel receipt:', receiptNo, err.message)
+              )
+            );
+          }
+
+          return successResponse(corsHeaders, cancelled, `ยกเลิกใบเสร็จรับเงินเลขที่ ${receiptNo} สำเร็จ`);
+        });
+      }
+
+      // 6. Payment Vouchers Management Endpoints (Phase 1.1)
+
+      // 6.1 POST /api/v1/vouchers - สร้างใบสำคัญจ่ายใหม่ (พร้อม Idempotency Guard)
+      if (path === '/api/v1/vouchers' && request.method === 'POST') {
+        return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
+          const actorEmail = request.headers.get('X-User-Email') || 'cashier@srisuk-rubber.com';
+          const actorRole = request.headers.get('X-User-Role') || 'Cashier';
+          const ipAddress = request.headers.get('CF-Connecting-IP') || '127.0.0.1';
+
+          const voucher = await createVoucher(env.DB, body, {
+            actorEmail,
+            actorRole,
+            ipAddress
+          });
+
+          // Phase 1.2: Asynchronous background sync to Google Sheets (Non-blocking)
+          if (ctx && typeof ctx.waitUntil === 'function') {
+            ctx.waitUntil(
+              syncVoucherToGoogleSheets(voucher, env).catch((err) =>
+                console.warn('Background Sheets sync failed for voucher:', voucher.voucher_no, err.message)
+              )
+            );
+          }
+
+          return successResponse(corsHeaders, voucher, 'สร้างใบสำคัญจ่ายสำเร็จ', 201);
+        });
+      }
+
+      // 6.2 GET /api/v1/vouchers - ค้นหาและดูรายการใบสำคัญจ่าย (Pagination & Filters)
+      if (path === '/api/v1/vouchers' && request.method === 'GET') {
+        const search = url.searchParams.get('search') || '';
+        const status = url.searchParams.get('status') || '';
+        const startDate = url.searchParams.get('startDate') || '';
+        const endDate = url.searchParams.get('endDate') || '';
+        const cashierName = url.searchParams.get('cashierName') || '';
+        const page = parseInt(url.searchParams.get('page') || '1', 10);
+        const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10);
+
+        const listData = await listVouchers(env.DB, {
+          search,
+          status,
+          startDate,
+          endDate,
+          cashierName,
+          page,
+          pageSize
+        });
+
+        return successResponse(corsHeaders, listData);
+      }
+
+      // 6.3 GET /api/v1/vouchers/:voucherNo - ดึงข้อมูลใบสำคัญจ่ายพร้อมรายการย่อย
+      if (path.startsWith('/api/v1/vouchers/') && request.method === 'GET') {
+        const voucherNo = decodeURIComponent(path.replace('/api/v1/vouchers/', '').trim());
+        const voucher = await getVoucherByNo(env.DB, voucherNo);
+
+        if (!voucher) {
+          return errorResponse(corsHeaders, `ไม่พบใบสำคัญจ่ายเลขที่ ${voucherNo}`, 404);
+        }
+
+        return successResponse(corsHeaders, voucher);
+      }
+
+      // 6.4 POST /api/v1/vouchers/:voucherNo/cancel - ขอยกเลิกใบสำคัญจ่าย
+      if (path.startsWith('/api/v1/vouchers/') && path.endsWith('/cancel') && request.method === 'POST') {
+        return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
+          const voucherNo = decodeURIComponent(path.replace('/api/v1/vouchers/', '').replace('/cancel', '').trim());
+          const reason = body.reason || body.cancelReason;
+          const cancelledByEmail = request.headers.get('X-User-Email') || 'admin@srisuk-rubber.com';
+          const cancelledByName = request.headers.get('X-User-Name') || 'ผู้ดูแลระบบ';
+
+          const cancelled = await cancelVoucher(env.DB, voucherNo, {
+            reason,
+            cancelledByEmail,
+            cancelledByName
+          });
+
+          // Phase 1.2: Asynchronous background sync to Google Sheets (Non-blocking)
+          if (ctx && typeof ctx.waitUntil === 'function') {
+            ctx.waitUntil(
+              syncCancelVoucherToGoogleSheets(voucherNo, reason, env).catch((err) =>
+                console.warn('Background Sheets sync failed for cancel voucher:', voucherNo, err.message)
+              )
+            );
+          }
+
+          return successResponse(corsHeaders, cancelled, `ยกเลิกใบสำคัญจ่ายเลขที่ ${voucherNo} สำเร็จ`);
+        });
+      }
+
+      // 7. Manual Google Sheets Sync Endpoints (Phase 1.2)
+      // 7.1 POST /api/v1/sync/receipts/:receiptNo - สั่งซิงค์ใบเสร็จไปยัง Google Sheets ด้วยตนเอง
+      if (path.startsWith('/api/v1/sync/receipts/') && request.method === 'POST') {
+        const receiptNo = decodeURIComponent(path.replace('/api/v1/sync/receipts/', '').trim());
+        const receipt = await getReceiptByNo(env.DB, receiptNo);
+        if (!receipt) {
+          return errorResponse(corsHeaders, `ไม่พบใบเสร็จเลขที่ ${receiptNo}`, 404);
+        }
+        const syncResult = await syncReceiptToGoogleSheets(receipt, env);
+        return successResponse(corsHeaders, syncResult, `ส่งข้อมูลใบเสร็จ ${receiptNo} ไปยัง Google Sheets สำเร็จ`);
+      }
+
+      // 7.2 POST /api/v1/sync/vouchers/:voucherNo - สั่งซิงค์ใบสำคัญจ่ายไปยัง Google Sheets ด้วยตนเอง
+      if (path.startsWith('/api/v1/sync/vouchers/') && request.method === 'POST') {
+        const voucherNo = decodeURIComponent(path.replace('/api/v1/sync/vouchers/', '').trim());
+        const voucher = await getVoucherByNo(env.DB, voucherNo);
+        if (!voucher) {
+          return errorResponse(corsHeaders, `ไม่พบใบสำคัญจ่ายเลขที่ ${voucherNo}`, 404);
+        }
+        const syncResult = await syncVoucherToGoogleSheets(voucher, env);
+        return successResponse(corsHeaders, syncResult, `ส่งข้อมูลใบสำคัญจ่าย ${voucherNo} ไปยัง Google Sheets สำเร็จ`);
+      }
+
       // Default 404 Route
       return new Response(JSON.stringify({
         status: 'error',
         message: `Endpoint ${path} not found`,
-        phase: 'Phase 0.5 - Authentication & RBAC Online'
+        phase: 'Phase 1.2 - Google Sheets Background Sync Online'
       }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
