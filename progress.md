@@ -117,6 +117,17 @@
 * **[`verifyRubberLots.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyRubberLots.js):**
   * ชุดทดสอบ Unit Test 32 ข้อ (Weighted Average Cost, รหัส LOT-69090001, Single Product Rule, Double Assignment, Add/Remove, Lock/Unlock, Cancel & Rollback) ผ่านครบ 32/32 ข้อ
 
+### 10. 🏭 พัฒนาระบบส่งขายโรงงานและสรุปผลกำไร-ขาดทุน (Phase 2.3)
+* **[`rubberSaleService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberSaleService.js):**
+  * **Dispatch / Create Sale:** สร้างบิลส่งขายโรงงาน `SL-YYMMXXXX` (สถานะ `PENDING`) และปรับสถานะ Lot เป็น `SHIPPED`
+  * **Single Lot Guard:** บังคับให้ส่งขายได้เฉพาะ Lot ที่ปิดผนึกแล้ว (`LOCKED`) เท่านั้น
+  * **Factory Lab DRC Settlement:** คำนวณราคาขายสุทธิ ($\text{Selling Price} \times \text{DRC}\% / 100$), ยอดเงินโอนจริงจากโรงงานหลังหักค่าปรับ/ค่าขนส่ง/ค่าธรรมเนียม
+  * **Real-time Profit & Margin:** คำนวณกำไร-ขาดทุนสุทธิ ($\text{Net Revenue} - \text{Total Lot Cost}$) และอัตรากำไรต่อ กก. ($\text{Margin/kg}$) อัตโนมัติ
+  * **Shrinkage Tracker:** คำนวณน้ำหนักที่สูญเสียระหว่างขนส่ง ($\text{Outbound Weight} - \text{Factory Actual Weight}$)
+  * **Safe Sale Cancellation:** ระบบยกเลิกบิลขายและคืนสถานะ Lot กลับเป็น `LOCKED` เพื่อเตรียมส่งขายใหม่
+* **[`verifyRubberSales.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyRubberSales.js):**
+  * ชุดทดสอบ Unit Test 37 ข้อ ครอบคลุมสูตรคำนวณเงินสด, DRC%, การสรุปผลโรงงาน, การป้องกันการส่งขาย Lot ที่ไม่พร้อม, และการยกเลิกบิล ผ่านครบ 37/37 ข้อ
+
 ---
 
 ## 🧪 สรุปผลการทดสอบระบบ Staging Backend ทั้งหมด (All Tests Passed)
@@ -131,9 +142,10 @@
 🧪 7. Staging Client & Toggle (Phase 1.3):  8 Passed, 0 Failed
 🧪 8. Rubber Purchase Engine (Phase 2.1):  30 Passed, 0 Failed
 🧪 9. Rubber Lot Engine (Phase 2.2):       32 Passed, 0 Failed
+🧪 10. Rubber Sales Engine (Phase 2.3):    37 Passed, 0 Failed
 
-🏆 รวมผลการทดสอบทั้งหมดของระบบ: 177 Passed, 0 Failed (100% Pass Rate)
-🚀 Frontend Production Build:       ✓ 1,607 modules transformed (Built in 1.70s)
+🏆 รวมผลการทดสอบทั้งหมดของระบบ: 214 Passed, 0 Failed (100% Pass Rate)
+🚀 Frontend Production Build:       ✓ 1,607 modules transformed (Built in 1.68s)
 ```
 
 ---
@@ -163,8 +175,8 @@
 | **Phase 1.3** | Frontend Migration / Toggle (สวิตช์หน้าบ้านเชื่อมต่อ Staging Backend API) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 8/8 ข้อ + Vite Build ผ่าน |
 | **Phase 2.1** | Inbound Weighing & Purchase Engine (ระบบชั่งซื้อยางหน้าลาน PB-YYMMXXXX) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 30/30 ข้อ |
 | **Phase 2.2** | Lot Grouping Engine (ระบบรวมบิลซื้อเข้า Lot สินค้า LOT-YYMMXXXX) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 32/32 ข้อ |
-| **Phase 2.3** | Outbound Factory Sales Engine (ระบบบิลส่งขายโรงงาน SL-YYMMXXXX) | ⏳ **เป้าหมายถัดไป** | เริ่มพัฒนา Phase 2.3 |
-| **Phase 2.4** | Real-time P&L Analytics & React UI Integration | ⏳ รอดำเนินการ | ต่อจาก Phase 2.3 |
+| **Phase 2.3** | Outbound Factory Sales Engine (ระบบบิลส่งขายโรงงาน SL-YYMMXXXX) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 37/37 ข้อ |
+| **Phase 2.4** | Real-time P&L Analytics & React UI Integration | ⏳ **เป้าหมายถัดไป** | เริ่มพัฒนา Phase 2.4 |
 | **Phase 3** | Automated R2 Backup & Monitoring (Sentry / Cloudflare Logpush) | ⏳ รอดำเนินการ | หลังจบ Phase 2 |
 
 ---
