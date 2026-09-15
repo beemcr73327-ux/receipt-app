@@ -106,6 +106,17 @@
 * **[`verifyRubberPurchases.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyRubberPurchases.js):**
   * ชุดทดสอบ Unit Test ครบ 30/30 ข้อ (สูตรคำนวณเงิน, DRC, Sequence, D1 Mock, Validation, Cancellation Safeguards)
 
+### 9. 📦 พัฒนาระบบจัดกลุ่มและคำนวณต้นทุนเฉลี่ย Lot ยางพารา (Phase 2.2)
+* **[`rubberLotService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberLotService.js):**
+  * **Lot Grouping Engine:** รวมบิลชั่งซื้อ (`PB-...`) เข้าเป็น Lot สินค้าใหม่ ออกรหัส `LOT-YYMMXXXX` อัตโนมัติ
+  * **Single Product Constraint:** บังคับ 1 Lot ต้องบรรจุยางชนิดเดียวกัน 100% ป้องกันการผสมประเภทยางข้ามกลุ่ม
+  * **Weighted Average Cost:** คำนวณน้ำหนักซื้อรวม ($\sum \text{weight}$), ต้นทุนซื้อรวม ($\sum \text{amount}$), และต้นทุนเฉลี่ยต่อ กก. ($\text{ต้นทุนรวม} / \text{น้ำหนักรวม}$) แบบ Real-time
+  * **Dynamic Modification:** รองรับการเพิ่มบิลเข้า Lot (`addTicketsToLot`) และปลดบิลออกจาก Lot (`removeTicketFromLot`) ในขณะที่สถานะเป็น `OPEN` พร้อมปรับปรุงยอดผลรวมทันที
+  * **Lifecycle & Lock Control:** ระบบล็อค Lot ป้องกันการแก้ไขเพื่อเตรียมจัดส่ง (`lockLot`: `OPEN` $\rightarrow$ `LOCKED`) และปลดล็อค (`unlockLot`)
+  * **Safe Cancellation:** ระบบยกเลิก Lot (`cancelLot`) พร้อมปลดบิลชั่งซื้อทั้งหมดคืนสู่คลัง (`UNASSIGNED`) เพื่อให้นำไปจัด Lot อื่นต่อได้โดยไม่สูญหาย
+* **[`verifyRubberLots.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyRubberLots.js):**
+  * ชุดทดสอบ Unit Test 32 ข้อ (Weighted Average Cost, รหัส LOT-69090001, Single Product Rule, Double Assignment, Add/Remove, Lock/Unlock, Cancel & Rollback) ผ่านครบ 32/32 ข้อ
+
 ---
 
 ## 🧪 สรุปผลการทดสอบระบบ Staging Backend ทั้งหมด (All Tests Passed)
@@ -119,9 +130,10 @@
 🧪 6. Google Sheets Sync (Phase 1.2):      16 Passed, 0 Failed
 🧪 7. Staging Client & Toggle (Phase 1.3):  8 Passed, 0 Failed
 🧪 8. Rubber Purchase Engine (Phase 2.1):  30 Passed, 0 Failed
+🧪 9. Rubber Lot Engine (Phase 2.2):       32 Passed, 0 Failed
 
-🏆 รวมผลการทดสอบทั้งหมดของระบบ: 145 Passed, 0 Failed (100% Pass Rate)
-🚀 Frontend Production Build:       ✓ 1,607 modules transformed (Built in 1.63s)
+🏆 รวมผลการทดสอบทั้งหมดของระบบ: 177 Passed, 0 Failed (100% Pass Rate)
+🚀 Frontend Production Build:       ✓ 1,607 modules transformed (Built in 1.70s)
 ```
 
 ---
@@ -150,8 +162,8 @@
 | **Phase 1.2** | Google Sheets Background Sync Service (Replication ผ่าน `ctx.waitUntil`) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 16/16 ข้อ |
 | **Phase 1.3** | Frontend Migration / Toggle (สวิตช์หน้าบ้านเชื่อมต่อ Staging Backend API) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 8/8 ข้อ + Vite Build ผ่าน |
 | **Phase 2.1** | Inbound Weighing & Purchase Engine (ระบบชั่งซื้อยางหน้าลาน PB-YYMMXXXX) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 30/30 ข้อ |
-| **Phase 2.2** | Lot Grouping Engine (ระบบรวมบิลซื้อเข้า Lot สินค้า LOT-YYMMXXXX) | ⏳ **เป้าหมายถัดไป** | เริ่มพัฒนา Phase 2.2 |
-| **Phase 2.3** | Outbound Factory Sales Engine (ระบบบิลส่งขายโรงงาน SL-YYMMXXXX) | ⏳ รอดำเนินการ | ต่อจาก Phase 2.2 |
+| **Phase 2.2** | Lot Grouping Engine (ระบบรวมบิลซื้อเข้า Lot สินค้า LOT-YYMMXXXX) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 32/32 ข้อ |
+| **Phase 2.3** | Outbound Factory Sales Engine (ระบบบิลส่งขายโรงงาน SL-YYMMXXXX) | ⏳ **เป้าหมายถัดไป** | เริ่มพัฒนา Phase 2.3 |
 | **Phase 2.4** | Real-time P&L Analytics & React UI Integration | ⏳ รอดำเนินการ | ต่อจาก Phase 2.3 |
 | **Phase 3** | Automated R2 Backup & Monitoring (Sentry / Cloudflare Logpush) | ⏳ รอดำเนินการ | หลังจบ Phase 2 |
 
