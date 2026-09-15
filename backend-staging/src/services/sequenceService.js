@@ -13,12 +13,44 @@
 
 import { getThaiDocPrefix } from '../utils/dateUtils.js';
 
-export const VALID_DOC_TYPES = ['receipt', 'voucher', 'weigh_ticket', 'lot'];
+export const VALID_DOC_TYPES = [
+  'receipt',
+  'voucher',
+  'weigh_ticket',
+  'lot',
+  'rubber_purchase',
+  'rubber_lot',
+  'rubber_sale',
+  'sale'
+];
+
+export const DOC_TAG_PREFIXES = {
+  receipt: '',
+  voucher: '',
+  weigh_ticket: 'PB-',
+  rubber_purchase: 'PB-',
+  lot: 'LOT-',
+  rubber_lot: 'LOT-',
+  rubber_sale: 'SL-',
+  sale: 'SL-'
+};
+
+/**
+ * จัดรูปแบบเลขที่เอกสารตาม Prefix และประเภทเอกสาร
+ * @param {string} docType 
+ * @param {string} prefix 
+ * @param {number} seq 
+ * @returns {string}
+ */
+export function formatDocNumber(docType, prefix, seq) {
+  const tag = DOC_TAG_PREFIXES[docType] || '';
+  return `${tag}${prefix}${String(seq).padStart(4, '0')}`;
+}
 
 /**
  * ดึงเลขที่เอกสารถัดไปแบบ Atomic (รับประกันเลขไม่ซ้ำและไม่กระโดด 100%)
  * @param {D1Database} db 
- * @param {string} docType - 'receipt' | 'voucher' | 'weigh_ticket' | 'lot'
+ * @param {string} docType - 'receipt' | 'voucher' | 'weigh_ticket' | 'lot' | 'rubber_purchase' | 'rubber_lot' | 'rubber_sale'
  * @param {Date|string} [dateInput] - วันที่ออกเอกสาร (Default คือเวลาปัจจุบัน)
  * @returns {Promise<{ docType: string, prefix: string, sequenceNumber: number, formattedNumber: string }>}
  */
@@ -42,7 +74,7 @@ export async function getNextDocumentNumber(db, docType, dateInput = new Date())
 
   const result = await db.prepare(query).bind(cleanDocType, prefix).first();
   const nextSeq = result ? result.current_seq : 1;
-  const formattedNumber = `${prefix}${String(nextSeq).padStart(4, '0')}`;
+  const formattedNumber = formatDocNumber(cleanDocType, prefix, nextSeq);
 
   return {
     docType: cleanDocType,
@@ -80,7 +112,7 @@ export async function previewNextDocumentNumber(db, docType, dateInput = new Dat
     }
   }
 
-  const nextFormattedNumber = `${prefix}${String(nextSeq).padStart(4, '0')}`;
+  const nextFormattedNumber = formatDocNumber(cleanDocType, prefix, nextSeq);
 
   return {
     docType: cleanDocType,
@@ -120,7 +152,7 @@ export async function setManualSeed(db, docType, prefix, seedValue) {
   `;
 
   const result = await db.prepare(query).bind(cleanDocType, cleanPrefix, cleanSeed, cleanSeed).first();
-  const nextFormattedNumber = `${cleanPrefix}${String(cleanSeed).padStart(4, '0')}`;
+  const nextFormattedNumber = formatDocNumber(cleanDocType, cleanPrefix, cleanSeed);
 
   return {
     docType: cleanDocType,
@@ -154,7 +186,7 @@ export async function getSequenceStatus(db, docType, prefix = null) {
     prefix: targetPrefix,
     currentSeq: row ? row.current_seq : 0,
     manualSeed: row ? row.manual_seed : null,
-    formattedCurrent: row && row.current_seq > 0 ? `${targetPrefix}${String(row.current_seq).padStart(4, '0')}` : 'ยังไม่มีการออกเอกสาร',
+    formattedCurrent: row && row.current_seq > 0 ? formatDocNumber(cleanDocType, targetPrefix, row.current_seq) : 'ยังไม่มีการออกเอกสาร',
     updatedAt: row ? row.updated_at : null
   };
 }

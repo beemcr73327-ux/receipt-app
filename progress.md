@@ -88,21 +88,40 @@
   * Interactive Staging Demo Studio สำหรับทดลองบันทึกและจำลองระบบเสมือนจริงบนเบราว์เซอร์
 * **ผลการทดสอบ:** ผ่านการทดสอบ Unit Test ครบ 8/8 รายการ (`verifyStagingClient.js`) และ Vite Build ผ่าน 100%
 
+### 8. 🌿 พัฒนาระบบรับซื้อยางหน้าลาน Inbound Weighing & Purchase Engine (Phase 2.1)
+* **[`schema.sql`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/schema.sql):**
+  * เพิ่ม 3 ตารางใหม่สำหรับระบบ Lot ยางพารา: `rubber_lots` (หัว Lot), `rubber_purchases` (ใบชั่งซื้อหน้าลาน), `rubber_sales` (บิลขายโรงงาน & P&L) พร้อม Foreign Keys และ Index ครบถ้วน
+* **[`sequenceService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/sequenceService.js):**
+  * ขยายระบบ Atomic Sequence Engine รองรับเอกสาร Lot ยางพารา:
+    * ใบชั่งซื้อหน้าลาน: `PB-YYMMXXXX` (เช่น `PB-69090001`)
+    * หัว Lot ยางพารา: `LOT-YYMMXXXX` (เช่น `LOT-69090001`)
+    * บิลขายโรงงาน: `SL-YYMMXXXX` (เช่น `SL-69090001`)
+  * คงความเข้ากันได้ 100% กับใบเสร็จรับเงินและใบสำคัญจ่ายเดิม
+* **[`rubberPurchaseService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberPurchaseService.js):**
+  * คำนวณสูตรน้ำหนักเนื้อยางแห้งและยอดเงินสุทธิ ทั้งแบบมีค่า DRC% (`Weight * Price * DRC% / 100`) และแบบซื้อสดไม่มี DRC (`Weight * Price`)
+  * ฟังก์ชันสร้างใบชั่งซื้อ (`createPurchaseTicket`) พร้อมเลขที่อ้างอิงใบชั่งกระดาษ (`paper_ref`)
+  * ฟังก์ชันดึงรายการซื้อที่รอจัดเข้า Lot (`getUnassignedPurchases`)
+  * ฟังก์ชันดึงรายการซื้อทั้งหมดพร้อม Pagination และตัวกรอง (`listPurchases`)
+  * ฟังก์ชันยกเลิกใบชั่งซื้อ (`cancelPurchaseTicket`) พร้อมระบบความปลอดภัย: ป้องกันการยกเลิกบิลที่ถูกจัดเข้า Lot แล้ว
+* **[`verifyRubberPurchases.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyRubberPurchases.js):**
+  * ชุดทดสอบ Unit Test ครบ 30/30 ข้อ (สูตรคำนวณเงิน, DRC, Sequence, D1 Mock, Validation, Cancellation Safeguards)
+
 ---
 
 ## 🧪 สรุปผลการทดสอบระบบ Staging Backend ทั้งหมด (All Tests Passed)
 
 ```text
-🧪 1. Sequence Engine (Phase 0.2):       13 Passed, 0 Failed
-🧪 2. Idempotency Guard (Phase 0.3):     15 Passed, 0 Failed
-🧪 3. Immutable Audit Log (Phase 0.4):   20 Passed, 0 Failed
-🧪 4. Auth & RBAC System (Phase 0.5):    23 Passed, 0 Failed
-🧪 5. Document CRUD Engine (Phase 1.1):  20 Passed, 0 Failed
-🧪 6. Google Sheets Sync (Phase 1.2):    16 Passed, 0 Failed
-🧪 7. Staging Client & Toggle (Phase 1.3): 8 Passed, 0 Failed
+🧪 1. Sequence Engine (Phase 0.2):         13 Passed, 0 Failed
+🧪 2. Idempotency Guard (Phase 0.3):       15 Passed, 0 Failed
+🧪 3. Immutable Audit Log (Phase 0.4):     20 Passed, 0 Failed
+🧪 4. Auth & RBAC System (Phase 0.5):      23 Passed, 0 Failed
+🧪 5. Document CRUD Engine (Phase 1.1):    20 Passed, 0 Failed
+🧪 6. Google Sheets Sync (Phase 1.2):      16 Passed, 0 Failed
+🧪 7. Staging Client & Toggle (Phase 1.3):  8 Passed, 0 Failed
+🧪 8. Rubber Purchase Engine (Phase 2.1):  30 Passed, 0 Failed
 
-🏆 รวมผลการทดสอบทั้งหมดของระบบ: 115 Passed, 0 Failed (100% Pass Rate)
-🚀 Frontend Production Build:     ✓ 1,607 modules transformed (Built in 1.62s)
+🏆 รวมผลการทดสอบทั้งหมดของระบบ: 145 Passed, 0 Failed (100% Pass Rate)
+🚀 Frontend Production Build:       ✓ 1,607 modules transformed (Built in 1.63s)
 ```
 
 ---
@@ -130,7 +149,10 @@
 | **Phase 1.1** | Complete Document CRUD Engine (Receipts & Vouchers + DRC Calculation) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 20/20 ข้อ |
 | **Phase 1.2** | Google Sheets Background Sync Service (Replication ผ่าน `ctx.waitUntil`) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 16/16 ข้อ |
 | **Phase 1.3** | Frontend Migration / Toggle (สวิตช์หน้าบ้านเชื่อมต่อ Staging Backend API) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 8/8 ข้อ + Vite Build ผ่าน |
-| **Phase 2** | ระบบซื้อขาย Lot ยางพารา (Buy, Lot Grouping, Sell, P&L Dashboard) | ⏳ **เป้าหมายถัดไป** | เริ่มพัฒนา Phase 2.1 (Buying & Weighing) |
+| **Phase 2.1** | Inbound Weighing & Purchase Engine (ระบบชั่งซื้อยางหน้าลาน PB-YYMMXXXX) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 30/30 ข้อ |
+| **Phase 2.2** | Lot Grouping Engine (ระบบรวมบิลซื้อเข้า Lot สินค้า LOT-YYMMXXXX) | ⏳ **เป้าหมายถัดไป** | เริ่มพัฒนา Phase 2.2 |
+| **Phase 2.3** | Outbound Factory Sales Engine (ระบบบิลส่งขายโรงงาน SL-YYMMXXXX) | ⏳ รอดำเนินการ | ต่อจาก Phase 2.2 |
+| **Phase 2.4** | Real-time P&L Analytics & React UI Integration | ⏳ รอดำเนินการ | ต่อจาก Phase 2.3 |
 | **Phase 3** | Automated R2 Backup & Monitoring (Sentry / Cloudflare Logpush) | ⏳ รอดำเนินการ | หลังจบ Phase 2 |
 
 ---

@@ -157,3 +157,76 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_resource ON audit_logs(resource_type, resource_id);
 CREATE INDEX IF NOT EXISTS idx_audit_actor ON audit_logs(actor_email);
 CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_logs(created_at);
+
+-- 10. Rubber Lot Headers (LOT-YYMMXXXX)
+CREATE TABLE IF NOT EXISTS rubber_lots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lot_no TEXT NOT NULL UNIQUE,
+    lot_name TEXT NOT NULL,
+    product_type TEXT NOT NULL,
+    total_weight_kg REAL NOT NULL DEFAULT 0,
+    total_cost REAL NOT NULL DEFAULT 0,
+    avg_cost_per_kg REAL NOT NULL DEFAULT 0,
+    items_count INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'OPEN' CHECK(status IN ('OPEN', 'LOCKED', 'SHIPPED', 'COMPLETED', 'CANCELLED')),
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now', '+7 hours')),
+    updated_at TEXT NOT NULL DEFAULT (DATETIME('now', '+7 hours'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_rubber_lots_lot_no ON rubber_lots(lot_no);
+CREATE INDEX IF NOT EXISTS idx_rubber_lots_status ON rubber_lots(status);
+
+-- 11. Inbound Purchase Tickets (PB-YYMMXXXX)
+CREATE TABLE IF NOT EXISTS rubber_purchases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_no TEXT NOT NULL UNIQUE,
+    paper_ref TEXT,
+    purchase_date TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    seller_name TEXT NOT NULL,
+    product_type TEXT NOT NULL,
+    weight_kg REAL NOT NULL DEFAULT 0,
+    unit_price REAL NOT NULL DEFAULT 0,
+    drc_percent REAL DEFAULT 0,
+    dry_weight_kg REAL NOT NULL DEFAULT 0,
+    total_amount REAL NOT NULL DEFAULT 0,
+    lot_id INTEGER REFERENCES rubber_lots(id),
+    status TEXT NOT NULL DEFAULT 'UNASSIGNED' CHECK(status IN ('UNASSIGNED', 'ASSIGNED', 'CANCELLED')),
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now', '+7 hours')),
+    updated_at TEXT NOT NULL DEFAULT (DATETIME('now', '+7 hours'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_rubber_purchases_ticket_no ON rubber_purchases(ticket_no);
+CREATE INDEX IF NOT EXISTS idx_rubber_purchases_date ON rubber_purchases(purchase_date);
+CREATE INDEX IF NOT EXISTS idx_rubber_purchases_lot_id ON rubber_purchases(lot_id);
+CREATE INDEX IF NOT EXISTS idx_rubber_purchases_status ON rubber_purchases(status);
+
+-- 12. Factory Sales & P&L Settlements (SL-YYMMXXXX)
+CREATE TABLE IF NOT EXISTS rubber_sales (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sale_no TEXT NOT NULL UNIQUE,
+    lot_id INTEGER NOT NULL UNIQUE REFERENCES rubber_lots(id),
+    factory_name TEXT NOT NULL,
+    ship_date TEXT NOT NULL,
+    outbound_weight_kg REAL DEFAULT 0,
+    factory_weight_kg REAL NOT NULL DEFAULT 0,
+    factory_drc_percent REAL DEFAULT 0,
+    selling_price_per_kg REAL NOT NULL DEFAULT 0,
+    net_price_per_kg REAL NOT NULL DEFAULT 0,
+    gross_revenue REAL NOT NULL DEFAULT 0,
+    penalty_deduction REAL DEFAULT 0,
+    transport_cost REAL DEFAULT 0,
+    other_fees REAL DEFAULT 0,
+    net_revenue REAL NOT NULL DEFAULT 0,
+    net_profit REAL NOT NULL DEFAULT 0,
+    margin_per_kg REAL NOT NULL DEFAULT 0,
+    weight_shrinkage_kg REAL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK(status IN ('PENDING', 'CLOSED')),
+    created_at TEXT NOT NULL DEFAULT (DATETIME('now', '+7 hours')),
+    updated_at TEXT NOT NULL DEFAULT (DATETIME('now', '+7 hours'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_rubber_sales_sale_no ON rubber_sales(sale_no);
+CREATE INDEX IF NOT EXISTS idx_rubber_sales_lot_id ON rubber_sales(lot_id);
+CREATE INDEX IF NOT EXISTS idx_rubber_sales_status ON rubber_sales(status);
