@@ -1,96 +1,31 @@
-# 📈 Progress Report & Backend Roadmap — สรุปการพัฒนาและแผนงานเวอร์ชัน 5.0
+# 📊 สรุปความคืบหน้าโครงการพัฒนาระบบ (Progress Report)
 
-> **โปรเจกต์:** Receipt & Payment Voucher & Rubber Lot Trading Web Application  
+> **โปรเจกต์:** ระบบออกใบเสร็จรับเงิน ใบสำคัญจ่าย บันทึกบัญชี และระบบซื้อขาย Lot ยางพารา  
 > **องค์กร:** บริษัท ศรีสุข พูนทรัพย์ ยางพารา จำกัด  
-> **เวอร์ชันปัจจุบัน:** 5.0 (Phase 0 & Phase 1.1 - 1.2 Complete — Enterprise Edge Application Layer Ready)  
-> **วันที่อัปเดตล่าสุด:** 11 กันยายน 2569 (2026-09-11)
+> **เวอร์ชัน:** 5.0 (Phase 2 Enterprise Staging)  
+> **สาขา Git:** `feature/backend-staging`  
+> **วันที่อัปเดต:** 15 กันยายน 2569 (2026-09-15)
 
 ---
 
-## 📌 สรุปภาพรวมงานที่สำเร็จ (Work Summary)
+## 🎯 สรุปภาพรวมความสำเร็จใน Session นี้ (Session Highlights)
 
-ใน Session นี้ เราได้พัฒนาต่อยอดอย่างก้าวกระโดดจาก **Phase 0** สู่ **Phase 1 (Application & Sync Layer)** จนสำเร็จเสร็จสิ้นทั้งสองโมดูลหลัก:
-1. **Phase 1.1: Complete Document CRUD Operations** (ใบเสร็จรับเงิน + ใบสำคัญจ่าย ครบวงจร)
-2. **Phase 1.2: Google Sheets Background Sync Service** (ระบบซิงค์ข้อมูลเบื้องหลังแบบ Non-blocking)
+ใน Session นี้ เราได้ดำเนินการพัฒนา **Phase 2: ระบบซื้อขายและจัดการ Lot ยางพารา (Rubber Lot Trading & P&L Analytics System)** ต่อเนื่องอย่างเป็นระบบ โดยผ่านขั้นตอนการวิเคราะห์เชิงลึก (`/grill-me`), การออกแบบฐานข้อมูล Cloudflare D1, การสร้างโมดูลคำนวณเงิน, และการทดสอบด้วย Unit Test ครบ 100%:
 
-ทุกอย่างถูกพัฒนาและทดสอบในโฟลเดอร์ [`backend-staging/`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging) ภายใต้มาตรการ **Zero-Impact Isolation** การันตีว่าระบบเดิมใน Production ไม่มีการแตะต้องและปลอดภัย 100%
-
----
-
-### 1. ⚡ พัฒนาระบบ Atomic Sequence Engine (Phase 0.2)
-* **[`dateUtils.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/utils/dateUtils.js) & [`sequenceService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/sequenceService.js):**
-  * รันเลขที่เอกสารแบบ Atomic ผ่าน SQL Upsert ป้องกันเลขชนกัน รูปแบบ `YYMMXXXX` (เช่น `69090001` ถึง `69099999`)
-  * รองรับ Manual Seed Config และ Preview เลขถัดไป
-  * ชุดทดสอบผ่านครบ 13 รายการ (13 Passed, 0 Failed)
+```mermaid
+graph LR
+    P21["Phase 2.1 (เสร็จ 100%)<br>Inbound Buying Engine<br>• ตาราง rubber_purchases<br>• รหัส PB-YYMMXXXX<br>• คำนวณเงินสด / DRC%<br>• 30 Tests Passed"] --> P22["Phase 2.2 (เสร็จ 100%)<br>Lot Grouping Engine<br>• ตาราง rubber_lots<br>• รหัส LOT-YYMMXXXX<br>• เฉลี่ยต้นทุนต่อ กก.<br>• 32 Tests Passed"]
+    P22 --> P23["Phase 2.3 (เสร็จ 100%)<br>Factory Sales Engine<br>• ตาราง rubber_sales<br>• รหัส SL-YYMMXXXX<br>• สรุปผลแล็บโรงงาน / P&L<br>• 37 Tests Passed"]
+    P23 --> P24["Phase 2.4 (เป้าหมายถัดไป)<br>UI Integration<br>• 5 แท็บตาม lot-trading-ui.html<br>• Feature Flag ใน Settings<br>• Zero-Impact ต่อระบบเดิม"]
+```
 
 ---
 
-### 2. 🛡️ พัฒนาระบบ Idempotency Guard (Phase 0.3)
-* **[`idempotency.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/middleware/idempotency.js):**
-  * ป้องกันการกดบันทึกเอกสารซ้ำซ้อน (Double Billing Prevention) ด้วย HTTP Header `X-Idempotency-Key` (UUID)
-  * คำนวณ SHA-256 Hash ของคำขอ พร้อมคืนค่าแคชเดิม (`_idempotent: true`) และดักจับ Payload Mismatch (409 Conflict)
-  * ชุดทดสอบผ่านครบ 15 รายการ (15 Passed, 0 Failed)
+## 🛠️ รายละเอียดงานที่พัฒนาเสร็จสมบูรณ์ใน Session นี้
 
----
-
-### 3. ⛓️ พัฒนาระบบ Immutable Audit Logging (Phase 0.4)
-* **[`auditService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/auditService.js):**
-  * บันทึกประวัติธุรกรรมแบบ Insert-Only ลงตาราง `audit_logs` พร้อมร้อยเรียง SHA-256 Hash Chaining (Blockchain-like)
-  * ระบบตรวจสอบสายใยความสมบูรณ์และตรวจจับการแอบแก้ไขย้อนหลัง (`verifyChainIntegrity`)
-  * ชุดทดสอบผ่านครบ 20 รายการ (20 Passed, 0 Failed)
-
----
-
-### 4. 🔐 พัฒนาระบบ Authentication & RBAC System (Phase 0.5)
-* **[`authService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/authService.js):**
-  * **PBKDF2/SHA-256 Hashing:** แฮชรหัสผ่าน 100,000 รอบ พร้อม Unique Cryptographic Salt 16 ไบต์ ป้องกัน Rainbow Table Attack
-  * **Native Web Crypto JWT:** ออกและตรวจสอบ JWT Token (HMAC-SHA256) โดยไม่พึ่งพา External Library
-  * **Role-Based Access Control (RBAC):** กำหนดสิทธิ์ผู้ใช้ (`Admin`, `Manager`, `User`/`Cashier`) พร้อม Middleware ตรวจสอบสิทธิ์
-  * **Genesis Admin Seeding:** ระบบสร้างผู้ดูแลระบบคนแรกของบริษัท (`POST /api/v1/auth/seed-admin`)
-  * ชุดทดสอบผ่านครบ 23 รายการ (23 Passed, 0 Failed)
-
----
-
-### 5. 📄 พัฒนาระบบ Complete Document CRUD Engine (Phase 1.1)
-* **[`documentService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/documentService.js):**
-  * **Receipts Management:** จัดการใบเสร็จรับเงินทั้งส่วนหัว (Header) และรายการสินค้า (Items) พร้อมคำนวณสูตรยางพารา DRC% อัตโนมัติ (`(quantity * price * DRC%) - discount`)
-  * **Payment Vouchers:** จัดการใบสำคัญจ่าย เชื่อมต่อบัญชีบริษัทและบัญชีปลายทาง รองรับรายการจ่ายหลายแถว
-  * **Soft Cancel Engine:** ระบบยกเลิกเอกสารพร้อมบันทึกเหตุผล ผู้ยกเลิก และเวลา ป้องกันการยกเลิกซ้ำ
-  * **Security Wiring:** เชื่อมโยงเข้ากับ Sequence Engine, Idempotency Guard, และ Immutable Audit Trail ทุกคำขอ
-  * ชุดทดสอบผ่านครบ 20 รายการ (20 Passed, 0 Failed)
-
----
-
-### 6. 🔄 พัฒนาระบบ Google Sheets Background Sync Service (Phase 1.2)
-* **[`googleSheetsSyncService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/googleSheetsSyncService.js):**
-  * **Asynchronous Non-blocking Sync:** ส่งข้อมูลไป Google Sheets ผ่าน `ctx.waitUntil(...)` ทำให้หน้าบ้านตอบสนองไวระดับ Sub-50ms โดยไม่ต้องรอชีต
-  * **Precise Schema Mapping:** แปลงข้อมูลจาก D1 เป็น 20 คอลัมน์สำหรับใบเสร็จ และ 18 คอลัมน์สำหรับใบสำคัญจ่าย ตรงตามฟอร์แมตชีตเดิม 100%
-  * **Resilience & Timeout Guard:** ครอบคลุม Timeout 8,000ms และ AbortController ป้องกันระบบค้าง
-  * **Manual Sync Endpoints:** รองรับคำสั่งสั่งซิงค์เอกสารรายใบย้อนหลังผ่าน API
-  * ชุดทดสอบผ่านครบ 16 รายการ (16 Passed, 0 Failed)
-
----
-
-### 7. 🔌 พัฒนาระบบ Frontend Migration & Backend Engine Toggle (Phase 1.3)
-* **[`stagingApiClient.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/stagingApiClient.js):**
-  * Staging Client เชื่อมต่อ Cloudflare Worker API ฉีด HTTP Header `X-Idempotency-Key` (UUIDv4) อัตโนมัติทุกคำขอ
-  * รองรับฟังก์ชัน: `checkStagingHealth`, `createReceiptStaging`, `cancelReceiptStaging`, `createVoucherStaging`, `cancelVoucherStaging`
-* **[`storageService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/storageService.js):**
-  * เพิ่มการตั้งค่า `apiMode` (Default: `'production'`) และ `stagingApiUrl` (Default: `'http://localhost:8787'`)
-  * สลับ Routing คำขอ `saveReceipt`, `cancelReceipt`, `saveVoucher`, `cancelVoucher` ไปยัง Staging Edge D1 Backend อัตโนมัติเมื่อเปิด Staging Mode
-  * **Zero-Impact Preservation:** ค่าเริ่มต้นเป็น `'production'` เสมอ ป้องกันผลกระทบต่อผู้ใช้งานทั่วไป 100%
-* **[`SettingsModal.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/SettingsModal.jsx):**
-  * ตัวสลับโหมด Backend Engine: `🟢 Production Mode (เดิม)` หรือ `⚡ Staging Mode (Edge D1 5.0)`
-  * ช่องใส่ URL Staging API พร้อมปุ่ม **"ทดสอบเชื่อมต่อ (Test Connection)"** ตรวจเช็คสถานะ D1 Database และวัดค่า Ping Latency แบบ Realtime
-* **[`Sidebar.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Sidebar.jsx) & [`Header.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Header.jsx):**
-  * แสดงป้ายสถานะ `⚡ Staging Engine 5.0` เมื่ออยู่ในโหมดทดสอบ พร้อมคลิกเพื่อเปิดหน้าตั้งค่าได้ทันที
-* **[`backend-staging/demo/index.html`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/demo/index.html) & [`runLiveDemo.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/runLiveDemo.js):**
-  * Interactive Staging Demo Studio สำหรับทดลองบันทึกและจำลองระบบเสมือนจริงบนเบราว์เซอร์
-* **ผลการทดสอบ:** ผ่านการทดสอบ Unit Test ครบ 8/8 รายการ (`verifyStagingClient.js`) และ Vite Build ผ่าน 100%
-
-### 8. 🌿 พัฒนาระบบรับซื้อยางหน้าลาน Inbound Weighing & Purchase Engine (Phase 2.1)
+### 1. 🌿 พัฒนาระบบรับซื้อยางหน้าลาน Inbound Weighing & Purchase Engine (Phase 2.1)
 * **[`schema.sql`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/schema.sql):**
-  * เพิ่ม 3 ตารางใหม่สำหรับระบบ Lot ยางพารา: `rubber_lots` (หัว Lot), `rubber_purchases` (ใบชั่งซื้อหน้าลาน), `rubber_sales` (บิลขายโรงงาน & P&L) พร้อม Foreign Keys และ Index ครบถ้วน
+  * เพิ่ม 3 ตารางใหม่สำหรับระบบ Lot ยางพารา: `rubber_lots`, `rubber_purchases`, `rubber_sales` (ภาษาอังกฤษล้วน พร้อม Indexes ครบถ้วน)
 * **[`sequenceService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/sequenceService.js):**
   * ขยายระบบ Atomic Sequence Engine รองรับเอกสาร Lot ยางพารา:
     * ใบชั่งซื้อหน้าลาน: `PB-YYMMXXXX` (เช่น `PB-69090001`)
@@ -101,32 +36,34 @@
   * คำนวณสูตรน้ำหนักเนื้อยางแห้งและยอดเงินสุทธิ ทั้งแบบมีค่า DRC% (`Weight * Price * DRC% / 100`) และแบบซื้อสดไม่มี DRC (`Weight * Price`)
   * ฟังก์ชันสร้างใบชั่งซื้อ (`createPurchaseTicket`) พร้อมเลขที่อ้างอิงใบชั่งกระดาษ (`paper_ref`)
   * ฟังก์ชันดึงรายการซื้อที่รอจัดเข้า Lot (`getUnassignedPurchases`)
-  * ฟังก์ชันดึงรายการซื้อทั้งหมดพร้อม Pagination และตัวกรอง (`listPurchases`)
   * ฟังก์ชันยกเลิกใบชั่งซื้อ (`cancelPurchaseTicket`) พร้อมระบบความปลอดภัย: ป้องกันการยกเลิกบิลที่ถูกจัดเข้า Lot แล้ว
 * **[`verifyRubberPurchases.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyRubberPurchases.js):**
-  * ชุดทดสอบ Unit Test ครบ 30/30 ข้อ (สูตรคำนวณเงิน, DRC, Sequence, D1 Mock, Validation, Cancellation Safeguards)
+  * ชุดทดสอบ Unit Test 30 ข้อ ผ่านครบ 30/30 ข้อ 100%
 
-### 9. 📦 พัฒนาระบบจัดกลุ่มและคำนวณต้นทุนเฉลี่ย Lot ยางพารา (Phase 2.2)
+---
+
+### 2. 📦 พัฒนาระบบจัดกลุ่มและคำนวณต้นทุนเฉลี่ย Lot ยางพารา (Phase 2.2)
 * **[`rubberLotService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberLotService.js):**
   * **Lot Grouping Engine:** รวมบิลชั่งซื้อ (`PB-...`) เข้าเป็น Lot สินค้าใหม่ ออกรหัส `LOT-YYMMXXXX` อัตโนมัติ
-  * **Single Product Constraint:** บังคับ 1 Lot ต้องบรรจุยางชนิดเดียวกัน 100% ป้องกันการผสมประเภทยางข้ามกลุ่ม
+  * **Single Product Constraint:** บังคับ 1 Lot ต้องบรรจุยางชนิดเดียวกัน 100% ห้ามผสมข้ามประเภทเด็ดขาด
   * **Weighted Average Cost:** คำนวณน้ำหนักซื้อรวม ($\sum \text{weight}$), ต้นทุนซื้อรวม ($\sum \text{amount}$), และต้นทุนเฉลี่ยต่อ กก. ($\text{ต้นทุนรวม} / \text{น้ำหนักรวม}$) แบบ Real-time
-  * **Dynamic Modification:** รองรับการเพิ่มบิลเข้า Lot (`addTicketsToLot`) และปลดบิลออกจาก Lot (`removeTicketFromLot`) ในขณะที่สถานะเป็น `OPEN` พร้อมปรับปรุงยอดผลรวมทันที
-  * **Lifecycle & Lock Control:** ระบบล็อค Lot ป้องกันการแก้ไขเพื่อเตรียมจัดส่ง (`lockLot`: `OPEN` $\rightarrow$ `LOCKED`) และปลดล็อค (`unlockLot`)
-  * **Safe Cancellation:** ระบบยกเลิก Lot (`cancelLot`) พร้อมปลดบิลชั่งซื้อทั้งหมดคืนสู่คลัง (`UNASSIGNED`) เพื่อให้นำไปจัด Lot อื่นต่อได้โดยไม่สูญหาย
+  * **Dynamic Modification:** รองรับการเพิ่มบิลเข้า Lot (`addTicketsToLot`) และปลดบิลออกจาก Lot (`removeTicketFromLot`) ในขณะที่สถานะเป็น `OPEN` พร้อมคำนวณยอดผลรวมใหม่ทันที
+  * **Lifecycle & Lock Control:** ระบบล็อค Lot เพื่อเตรียมจัดส่ง (`lockLot`: `OPEN` $\rightarrow$ `LOCKED`) และปลดล็อค (`unlockLot`)
+  * **Safe Cancellation:** ระบบยกเลิก Lot (`cancelLot`) พร้อมปลดบิลชั่งซื้อทั้งหมดคืนสู่คลัง (`UNASSIGNED`) ป้องกันข้อมูลสูญหาย
 * **[`verifyRubberLots.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyRubberLots.js):**
-  * ชุดทดสอบ Unit Test 32 ข้อ (Weighted Average Cost, รหัส LOT-69090001, Single Product Rule, Double Assignment, Add/Remove, Lock/Unlock, Cancel & Rollback) ผ่านครบ 32/32 ข้อ
+  * ชุดทดสอบ Unit Test 32 ข้อ ผ่านครบ 32/32 ข้อ 100%
 
-### 10. 🏭 พัฒนาระบบส่งขายโรงงานและสรุปผลกำไร-ขาดทุน (Phase 2.3)
+---
+
+### 3. 🏭 พัฒนาระบบส่งขายโรงงานและสรุปผลกำไร-ขาดทุน (Phase 2.3)
 * **[`rubberSaleService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberSaleService.js):**
-  * **Dispatch / Create Sale:** สร้างบิลส่งขายโรงงาน `SL-YYMMXXXX` (สถานะ `PENDING`) และปรับสถานะ Lot เป็น `SHIPPED`
-  * **Single Lot Guard:** บังคับให้ส่งขายได้เฉพาะ Lot ที่ปิดผนึกแล้ว (`LOCKED`) เท่านั้น
-  * **Factory Lab DRC Settlement:** คำนวณราคาขายสุทธิ ($\text{Selling Price} \times \text{DRC}\% / 100$), ยอดเงินโอนจริงจากโรงงานหลังหักค่าปรับ/ค่าขนส่ง/ค่าธรรมเนียม
-  * **Real-time Profit & Margin:** คำนวณกำไร-ขาดทุนสุทธิ ($\text{Net Revenue} - \text{Total Lot Cost}$) และอัตรากำไรต่อ กก. ($\text{Margin/kg}$) อัตโนมัติ
-  * **Shrinkage Tracker:** คำนวณน้ำหนักที่สูญเสียระหว่างขนส่ง ($\text{Outbound Weight} - \text{Factory Actual Weight}$)
-  * **Safe Sale Cancellation:** ระบบยกเลิกบิลขายและคืนสถานะ Lot กลับเป็น `LOCKED` เพื่อเตรียมส่งขายใหม่
+  * **Dispatch & Sale Record (`createSaleRecord`):** ส่งออก Lot ที่ปิดผนึกแล้ว (`LOCKED`) ไปยังโรงงานปลายทาง ออกรหัสบิลส่งขาย **`SL-YYMMXXXX`** อัตโนมัติ (สถานะ `PENDING`) และปรับสถานะ Lot เป็น `SHIPPED`
+  * **Factory Lab DRC Settlement (`settleFactoryResult`):** บันทึกผลชั่งจริงหน้าโรงงานและค่าแล็บ DRC% พร้อมหักค่าปรับสิ่งเจือปน ค่าขนส่ง และค่าธรรมเนียม
+  * **Real-time Net Profit & Margin:** คำนวณรายรับสุทธิ (Net Revenue), ผลกำไร-ขาดทุนสุทธิ (Net Profit), กำไรต่อ กก. (Margin/kg), และน้ำหนักสูญเสียระหว่างทาง (Shrinkage) อัตโนมัติ ป้องกัน Floating-point precision error ด้วย `Number.EPSILON`
+  * **State Transition & Lock:** เมื่อปิดยอดแล้ว สถานะบิลขายจะเป็น `CLOSED` และ Lot จะเปลี่ยนเป็น `COMPLETED`
+  * **Safe Sale Cancellation:** ระบบยกเลิกบิลขาย (`cancelSaleRecord`) และคืนสถานะ Lot กลับเป็น `LOCKED` เพื่อเตรียมส่งขายใหม่ได้อย่างปลอดภัย
 * **[`verifyRubberSales.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyRubberSales.js):**
-  * ชุดทดสอบ Unit Test 37 ข้อ ครอบคลุมสูตรคำนวณเงินสด, DRC%, การสรุปผลโรงงาน, การป้องกันการส่งขาย Lot ที่ไม่พร้อม, และการยกเลิกบิล ผ่านครบ 37/37 ข้อ
+  * ชุดทดสอบ Unit Test 37 ข้อ ผ่านครบ 37/37 ข้อ 100%
 
 ---
 
@@ -147,6 +84,23 @@
 🏆 รวมผลการทดสอบทั้งหมดของระบบ: 214 Passed, 0 Failed (100% Pass Rate)
 🚀 Frontend Production Build:       ✓ 1,607 modules transformed (Built in 1.68s)
 ```
+
+---
+
+## 💡 ความหมายทางธุรกิจของผลการทดสอบ (Business Significance)
+
+| ชุดทดสอบ | จำนวน | ความหมายในการดำเนินธุรกิจของ บริษัท ศรีสุข พูนทรัพย์ ยางพารา จำกัด |
+|:---|:---:|:---|
+| **Sequence Engine** | 13 ข้อ | การันตีเลขที่บิล `PB-`, `LOT-`, `SL-` ไม่ซ้ำและไม่กระโดดข้าม แม้ออกบิลพร้อมกัน |
+| **Idempotency Guard** | 15 ข้อ | ป้องกันการกดบันทึกเบิ้ลเวลาเน็ตช้า ไม่จ่ายเงินซ้ำ ไม่ตัดสต็อกซ้ำ |
+| **Immutable Audit Log** | 20 ข้อ | บันทึกประวัติแบบบล็อกเชน ป้องกันการแอบแก้ราคายางหรือยอดเงินย้อนหลัง |
+| **Auth & RBAC** | 23 ข้อ | ระบบความปลอดภัย ป้องกันพนักงานทั่วไปแอบดูตัวเลขกำไรของบริษัท |
+| **Document CRUD** | 20 ข้อ | ความแม่นยำของใบเสร็จและใบสำคัญจ่ายเดิม รวมถึงการคำนวณส่วนลด |
+| **Google Sheets Sync** | 16 ข้อ | ส่งข้อมูลไปสำรองลง Google Sheets แบบเบื้องหลัง หน้าเว็บไม่ค้าง |
+| **Staging Toggle** | 8 ข้อ | สวิตช์แยกห้องทดลอง ทำให้การพัฒนาระบบ Lot ปลอดภัยต่อระบบเดิม 100% |
+| **Rubber Purchases (2.1)** | 30 ข้อ | คำนวณเงินสด/DRC ซื้อยางหน้าลานแม่นยำระดับสตางค์ ป้องกันเงินรั่วไหล |
+| **Rubber Lots (2.2)** | 32 ข้อ | คุมคุณภาพยาง 1 Lot ชนิดเดียวกัน 100% และคำนวณต้นทุนเฉลี่ยถ่วงน้ำหนัก |
+| **Rubber Sales & P&L (2.3)** | 37 ข้อ | คำนวณเงินโอนโรงงานตามผลแล็บจริง หักค่าขนส่ง/ค่าปรับ สรุปกำไรต่อ กก. |
 
 ---
 
@@ -187,32 +141,21 @@
 > **"ห้ามแก้ไขในส่วนของ UX/UI เพราะพึงพอใจแล้ว"**
 
 * **ขอบเขตการล็อค:**
-  1. **หน้าตาและดีไซน์ทั้งหมด (Layout & Styles):** หน้าใบเสร็จรับเงิน (`ReceiptForm`), หน้าใบสำคัญจ่าย (`VoucherForm`), ปฏิทินตัวกรองประวัติ (`HistoryModal`), แบบฟอร์มพิมพ์ A4 (`PrintReceipt`, `PrintVoucher`), หน้าจัดการบัญชีธนาคาร (`BankAccountManagement`), เมนูแถบข้าง (`Sidebar`), ฟอนต์, สี, ขนาดตัวอักษร, และโครงสร้างหน้าเว็บทั้งหมด **ล็อคตายตัว 100% ห้ามเปลี่ยนแปลง**
-  2. **ทิศทางการพัฒนาต่อจากนี้ (Phase 2 เป็นต้นไป):** มุ่งเน้นเฉพาะงานส่วน **Backend / Business Logic / Cloudflare D1 Schema / Restful API / Calculation Engine / Data Sync** เท่านั้น โดยไม่แก้ไขดีไซน์หรือพฤติกรรมหน้าจอที่ผู้ใช้พึงพอใจแล้วเด็ดขาด
+  1. **หน้าตาและดีไซน์เดิม 100%:** หน้าใบเสร็จรับเงิน (`ReceiptForm`), หน้าใบสำคัญจ่าย (`VoucherForm`), ปฏิทินตัวกรองประวัติ (`HistoryModal`), แบบฟอร์มพิมพ์ A4 (`PrintReceipt`, `PrintVoucher`), หน้าจัดการบัญชีธนาคาร (`BankAccountManagement`), เมนูแถบข้าง (`Sidebar`), ฟอนต์, สี, และขนาดตัวอักษร **ล็อคตายตัว 100% ไม่มีการแตะต้อง**
+  2. **ระบบใหม่ใน Phase 2.4:** จัดทำเป็นโมดูลแยกต่างหาก และถูกควบคุมด้วยสวิตช์ **Feature Flag** ในหน้า Settings (Default: ปิด) ผู้ใช้จึงสามารถเปิด-ปิดทดสอบได้อย่างปลอดภัยสูงสุด
 
 ---
 
-## 📦 รายการไฟล์และขั้นตอนการนำขึ้น GitHub (Git Commit & Push Guide)
+## 📦 รายการ Commit ที่เตรียมไว้ในเครื่องบน Branch `feature/backend-staging`
 
-ในการอัปเดตครั้งนี้ มีไฟล์ที่ถูกสร้างใหม่และปรับปรุงทั้งหมด **8 ไฟล์** บน Branch `feature/backend-staging`:
+1. `432e130`: `feat(phase-2.1): inbound rubber purchasing engine, schema tables & verification tests`
+2. `bc14f2e`: `feat(phase-2.2): rubber lot grouping, weighted average cost & aggregation engine`
+3. `6ca8ffb`: `feat(phase-2.3): factory sales engine, lab drc settlement & real-time pnl analytics`
 
-| ชื่อไฟล์ | สถานะ | หน้าที่และการทำงาน |
-|:---|:---:|:---|
-| [`src/services/stagingApiClient.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/stagingApiClient.js) | `NEW` | โมดูล Client เชื่อมต่อ Staging Worker API พร้อมฉีด Idempotency Key (UUIDv4) |
-| [`backend-staging/src/test/verifyStagingClient.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyStagingClient.js) | `NEW` | ชุดทดสอบ Unit Test สำหรับ Staging Client (ผ่าน 8/8 ข้อ) |
-| [`src/services/storageService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/storageService.js) | `MODIFIED` | ตัวสลับ Routing คำขอ `saveReceipt`, `cancelReceipt`, `saveVoucher`, `cancelVoucher` อัตโนมัติ |
-| [`src/components/SettingsModal.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/SettingsModal.jsx) | `MODIFIED` | ตัวสลับโหมด Backend Engine (Production / Staging 5.0) พร้อมปุ่มทดสอบ Health Check & Latency |
-| [`src/components/Sidebar.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Sidebar.jsx) | `MODIFIED` | เพิ่มป้ายสถานะ `⚡ Staging Engine 5.0` แจ้งเตือนเมื่ออยู่ในโหมดทดสอบ |
-| [`src/components/Header.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Header.jsx) | `MODIFIED` | เพิ่มป้ายสถานะ Staging และปุ่มลัดเข้าหน้าตั้งค่า |
-| [`prd.md`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/prd.md) | `MODIFIED` | เอกสาร PRD เวอร์ชัน 5.0 ฉบับสมบูรณ์ พร้อมข้อกำหนด Phase 2 และนโยบายล็อค UX/UI |
-| [`progress.md`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/progress.md) | `MODIFIED` | เอกสารรายงานความคืบหน้ารวมทุกงานใน Session นี้ |
-
-### 💻 คำสั่งสำหรับ Commit และ Push ขึ้น GitHub:
+### 💻 คำสั่งสำหรับ Push ขึ้น GitHub:
 ```bash
-git add .
-git commit -m "feat(phase-1.3): complete frontend migration, staging client, backend engine toggle & prd documentation"
 git push origin feature/backend-staging
 ```
 
 ---
-*จัดทำและบันทึกความคืบหน้าอย่างเป็นทางการ ณ วันที่ 11 กันยายน 2569 (2026-09-11)*
+*จัดทำและบันทึกความคืบหน้าอย่างเป็นทางการ ณ วันที่ 15 กันยายน 2569 (2026-09-15)*
