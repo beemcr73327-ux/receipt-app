@@ -41,6 +41,34 @@ import {
   syncVoucherToGoogleSheets,
   syncCancelVoucherToGoogleSheets
 } from './services/googleSheetsSyncService.js';
+import {
+  createPurchaseTicket,
+  getPurchaseTicketByNo as getPurchaseByNo,
+  listPurchases,
+  getUnassignedPurchases,
+  cancelPurchaseTicket
+} from './services/rubberPurchaseService.js';
+import {
+  createLot,
+  getLotByNo,
+  listLots,
+  addTicketsToLot,
+  removeTicketFromLot,
+  lockLot,
+  unlockLot,
+  cancelLot
+} from './services/rubberLotService.js';
+import {
+  createSaleRecord,
+  settleFactoryResult,
+  getSaleByNo,
+  getSaleByLotNo,
+  listSales,
+  cancelSaleRecord
+} from './services/rubberSaleService.js';
+import {
+  getRubberDashboardSummary
+} from './services/rubberDashboardService.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -497,6 +525,164 @@ export default {
         }
         const syncResult = await syncVoucherToGoogleSheets(voucher, env);
         return successResponse(corsHeaders, syncResult, `ส่งข้อมูลใบสำคัญจ่าย ${voucherNo} ไปยัง Google Sheets สำเร็จ`);
+      }
+
+      // 8. Rubber Purchases Endpoints (Phase 2.1)
+      // 8.1 GET /api/v1/rubber/purchases/unassigned - รายการชั่งซื้อรอจัด Lot
+      if (path === '/api/v1/rubber/purchases/unassigned' && request.method === 'GET') {
+        const branch = url.searchParams.get('branch');
+        const productName = url.searchParams.get('productName') || url.searchParams.get('product');
+        const result = await getUnassignedPurchases(env.DB, { branch, productName });
+        return successResponse(corsHeaders, result, `ดึงรายการชั่งซื้อรอจัด Lot สำเร็จ (${result.length} รายการ)`);
+      }
+
+      // 8.2 POST /api/v1/rubber/purchases - สร้างใบชั่งซื้อใหม่ (PB-YYMMXXXX)
+      if (path === '/api/v1/rubber/purchases' && request.method === 'POST') {
+        return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
+          const createdByEmail = request.headers.get('X-User-Email') || 'system@srisuk-rubber.com';
+          const createdByName = request.headers.get('X-User-Name') || 'เจ้าหน้าที่ชั่ง';
+          const newPurchase = await createPurchaseTicket(env.DB, body, { createdByEmail, createdByName });
+          const ticketNo = newPurchase.ticket_no || newPurchase.purchase_no;
+          newPurchase.ticket_no = ticketNo;
+          newPurchase.purchase_no = ticketNo;
+          return successResponse(corsHeaders, newPurchase, `สร้างใบชั่งซื้อเลขที่ ${ticketNo} สำเร็จ`);
+        });
+      }
+
+      // 8.3 POST /api/v1/rubber/purchases/:purchaseNo/cancel - ขอยกเลิกใบชั่งซื้อ
+      if (path.startsWith('/api/v1/rubber/purchases/') && path.endsWith('/cancel') && request.method === 'POST') {
+        return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
+          const purchaseNo = decodeURIComponent(path.replace('/api/v1/rubber/purchases/', '').replace('/cancel', '').trim());
+          const reason = body.reason || body.cancelReason || 'ยกเลิกรายการ';
+          const cancelled = await cancelPurchaseTicket(env.DB, purchaseNo, reason);
+          return successResponse(corsHeaders, cancelled, `ยกเลิกใบชั่งซื้อเลขที่ ${purchaseNo} สำเร็จ`);
+        });
+      }
+
+      // 8.4 GET /api/v1/rubber/purchases/:purchaseNo - ดึงข้อมูลใบชั่งซื้อตามเลขที่
+      if (path.startsWith('/api/v1/rubber/purchases/') && !path.endsWith('/cancel') && !path.endsWith('/unassigned') && request.method === 'GET') {
+        const purchaseNo = decodeURIComponent(path.replace('/api/v1/rubber/purchases/', '').trim());
+        const item = await getPurchaseByNo(env.DB, purchaseNo);
+        if (!item) return errorResponse(corsHeaders, `ไม่พบใบชั่งซื้อเลขที่ ${purchaseNo}`, 404);
+        return successResponse(corsHeaders, item, `ดึงข้อมูลใบชั่งซื้อ ${purchaseNo} สำเร็จ`);
+      }
+
+      // 8.5 GET /api/v1/rubber/purchases - รายการชั่งซื้อทั้งหมด
+      if (path === '/api/v1/rubber/purchases' && request.method === 'GET') {
+        const branch = url.searchParams.get('branch');
+        const productName = url.searchParams.get('productName') || url.searchParams.get('product');
+        const status = url.searchParams.get('status');
+        const startDate = url.searchParams.get('startDate');
+        const endDate = url.searchParams.get('endDate');
+        const limit = parseInt(url.searchParams.get('limit') || '100', 10);
+        const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+        const result = await listPurchases(env.DB, { branch, productName, status, startDate, endDate, limit, offset });
+        return successResponse(corsHeaders, result, `ดึงรายการชั่งซื้อสำเร็จ (${result.total} รายการ)`);
+      }
+
+      // 9. Rubber Lots Endpoints (Phase 2.2)
+      // 9.1 POST /api/v1/rubber/lots - สร้าง Lot สินค้าใหม่ (LOT-YYMMXXXX)
+      if (path === '/api/v1/rubber/lots' && request.method === 'POST') {
+        return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
+          const createdByEmail = request.headers.get('X-User-Email') || 'system@srisuk-rubber.com';
+          const createdByName = request.headers.get('X-User-Name') || 'ผู้จัดการคลัง';
+          const newLot = await createLot(env.DB, body, { createdByEmail, createdByName });
+          const lotNo = newLot.lot?.lot_no || newLot.lot_no;
+          return successResponse(corsHeaders, newLot, `สร้าง Lot สินค้าเลขที่ ${lotNo} สำเร็จ`);
+        });
+      }
+
+      // 9.2 POST /api/v1/rubber/lots/:lotNo/lock - ล็อค Lot เพื่อเตรียมจัดส่ง
+      if (path.startsWith('/api/v1/rubber/lots/') && path.endsWith('/lock') && request.method === 'POST') {
+        const lotNo = decodeURIComponent(path.replace('/api/v1/rubber/lots/', '').replace('/lock', '').trim());
+        const lockedLot = await lockLot(env.DB, lotNo);
+        return successResponse(corsHeaders, lockedLot, `ล็อค Lot สินค้า ${lotNo} เพื่อเตรียมส่งออกสำเร็จ`);
+      }
+
+      // 9.3 POST /api/v1/rubber/lots/:lotNo/unlock - ปลดล็อค Lot
+      if (path.startsWith('/api/v1/rubber/lots/') && path.endsWith('/unlock') && request.method === 'POST') {
+        const lotNo = decodeURIComponent(path.replace('/api/v1/rubber/lots/', '').replace('/unlock', '').trim());
+        const unlockedLot = await unlockLot(env.DB, lotNo);
+        return successResponse(corsHeaders, unlockedLot, `ปลดล็อค Lot สินค้า ${lotNo} สำเร็จ`);
+      }
+
+      // 9.4 POST /api/v1/rubber/lots/:lotNo/cancel - ยกเลิก Lot สินค้า
+      if (path.startsWith('/api/v1/rubber/lots/') && path.endsWith('/cancel') && request.method === 'POST') {
+        const lotNo = decodeURIComponent(path.replace('/api/v1/rubber/lots/', '').replace('/cancel', '').trim());
+        const body = await parseJsonBody(request);
+        const cancelled = await cancelLot(env.DB, lotNo, body.reason || 'ยกเลิก Lot');
+        return successResponse(corsHeaders, cancelled, `ยกเลิก Lot สินค้า ${lotNo} สำเร็จ`);
+      }
+
+      // 9.5 GET /api/v1/rubber/lots/:lotNo - ดึงข้อมูล Lot ตามเลขที่
+      if (path.startsWith('/api/v1/rubber/lots/') && !path.endsWith('/lock') && !path.endsWith('/unlock') && !path.endsWith('/cancel') && request.method === 'GET') {
+        const lotNo = decodeURIComponent(path.replace('/api/v1/rubber/lots/', '').trim());
+        const lot = await getLotByNo(env.DB, lotNo);
+        if (!lot) return errorResponse(corsHeaders, `ไม่พบ Lot เลขที่ ${lotNo}`, 404);
+        return successResponse(corsHeaders, lot, `ดึงข้อมูล Lot ${lotNo} สำเร็จ`);
+      }
+
+      // 9.6 GET /api/v1/rubber/lots - รายการ Lot ทั้งหมด
+      if (path === '/api/v1/rubber/lots' && request.method === 'GET') {
+        const status = url.searchParams.get('status');
+        const productName = url.searchParams.get('productName') || url.searchParams.get('product');
+        const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+        const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+        const result = await listLots(env.DB, { status, productName, limit, offset });
+        return successResponse(corsHeaders, result, `ดึงรายการ Lot สำเร็จ (${result.total} รายการ)`);
+      }
+
+      // 10. Rubber Sales Endpoints (Phase 2.3)
+      // 10.1 POST /api/v1/rubber/sales - สร้างบิลส่งขายโรงงาน (SL-YYMMXXXX)
+      if (path === '/api/v1/rubber/sales' && request.method === 'POST') {
+        return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
+          const createdByEmail = request.headers.get('X-User-Email') || 'system@srisuk-rubber.com';
+          const createdByName = request.headers.get('X-User-Name') || 'เจ้าหน้าที่ฝ่ายขาย';
+          const sale = await createSaleRecord(env.DB, body, { createdByEmail, createdByName });
+          return successResponse(corsHeaders, sale, `สร้างบิลส่งขายเลขที่ ${sale.sale_no} สำเร็จ`);
+        });
+      }
+
+      // 10.2 POST /api/v1/rubber/sales/:saleNo/settle - บันทึกผลแล็บ DRC และปิดยอด
+      if (path.startsWith('/api/v1/rubber/sales/') && path.endsWith('/settle') && request.method === 'POST') {
+        return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
+          const saleNo = decodeURIComponent(path.replace('/api/v1/rubber/sales/', '').replace('/settle', '').trim());
+          const settled = await settleFactoryResult(env.DB, saleNo, body);
+          return successResponse(corsHeaders, settled, `บันทึกผลโรงงานและปิดยอดบิลขาย ${saleNo} สำเร็จ`);
+        });
+      }
+
+      // 10.3 POST /api/v1/rubber/sales/:saleNo/cancel - ขอยกเลิกบิลส่งขาย
+      if (path.startsWith('/api/v1/rubber/sales/') && path.endsWith('/cancel') && request.method === 'POST') {
+        const saleNo = decodeURIComponent(path.replace('/api/v1/rubber/sales/', '').replace('/cancel', '').trim());
+        const body = await parseJsonBody(request);
+        const cancelled = await cancelSaleRecord(env.DB, saleNo, body.reason || 'ยกเลิกบิลขาย');
+        return successResponse(corsHeaders, cancelled, `ยกเลิกบิลส่งขาย ${saleNo} สำเร็จ`);
+      }
+
+      // 10.4 GET /api/v1/rubber/sales/:saleNo - ดึงข้อมูลบิลขายตามเลขที่
+      if (path.startsWith('/api/v1/rubber/sales/') && !path.endsWith('/settle') && !path.endsWith('/cancel') && request.method === 'GET') {
+        const saleNo = decodeURIComponent(path.replace('/api/v1/rubber/sales/', '').trim());
+        const sale = await getSaleByNo(env.DB, saleNo);
+        if (!sale) return errorResponse(corsHeaders, `ไม่พบรายการขายเลขที่ ${saleNo}`, 404);
+        return successResponse(corsHeaders, sale, `ดึงข้อมูลบิลขาย ${saleNo} สำเร็จ`);
+      }
+
+      // 10.5 GET /api/v1/rubber/sales - รายการบิลส่งขายทั้งหมด
+      if (path === '/api/v1/rubber/sales' && request.method === 'GET') {
+        const status = url.searchParams.get('status');
+        const factory = url.searchParams.get('factory') || url.searchParams.get('destination_factory');
+        const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+        const offset = parseInt(url.searchParams.get('offset') || '0', 10);
+        const result = await listSales(env.DB, { status, factory, limit, offset });
+        return successResponse(corsHeaders, result, `ดึงรายการบิลขายสำเร็จ (${result.total} รายการ)`);
+      }
+
+      // 11. Rubber Dashboard Analytics Endpoint (Phase 2.4)
+      if (path === '/api/v1/rubber/dashboard' && request.method === 'GET') {
+        const date = url.searchParams.get('date');
+        const summary = await getRubberDashboardSummary(env.DB, date);
+        return successResponse(corsHeaders, summary, 'ดึงข้อมูลสรุปภาพรวมระบบซื้อขาย Lot ยางพาราสำเร็จ');
       }
 
       // Default 404 Route

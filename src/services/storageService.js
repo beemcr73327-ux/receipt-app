@@ -87,7 +87,8 @@ const DEFAULT_SETTINGS = {
   configSheetId: CONFIG_SHEET_ID,
   logSheetId: LOG_SHEET_ID,
   apiMode: 'production', // 'production' | 'staging'
-  stagingApiUrl: DEFAULT_STAGING_API_URL
+  stagingApiUrl: DEFAULT_STAGING_API_URL,
+  enableRubberLotTrading: false // Feature Flag for Phase 2 (Default: OFF)
 };
 
 class StorageService {
@@ -806,6 +807,9 @@ class StorageService {
       }
       if (!stored.stagingApiUrl) {
         stored.stagingApiUrl = DEFAULT_SETTINGS.stagingApiUrl;
+      }
+      if (stored.enableRubberLotTrading === undefined) {
+        stored.enableRubberLotTrading = DEFAULT_SETTINGS.enableRubberLotTrading;
       }
       return stored;
     } catch {

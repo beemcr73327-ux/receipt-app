@@ -10,13 +10,13 @@
 
 ## 🎯 สรุปภาพรวมความสำเร็จใน Session นี้ (Session Highlights)
 
-ใน Session นี้ เราได้ดำเนินการพัฒนา **Phase 2: ระบบซื้อขายและจัดการ Lot ยางพารา (Rubber Lot Trading & P&L Analytics System)** ต่อเนื่องอย่างเป็นระบบ โดยผ่านขั้นตอนการวิเคราะห์เชิงลึก (`/grill-me`), การออกแบบฐานข้อมูล Cloudflare D1, การสร้างโมดูลคำนวณเงิน, และการทดสอบด้วย Unit Test ครบ 100%:
+ใน Session นี้ เราได้ดำเนินการพัฒนา **Phase 2: ระบบซื้อขายและจัดการ Lot ยางพารา (Rubber Lot Trading & P&L Analytics System)** ครบถ้วนทั้ง 4 เฟสย่อย (2.1, 2.2, 2.3, 2.4) จนเสร็จสมบูรณ์ 100%:
 
 ```mermaid
 graph LR
     P21["Phase 2.1 (เสร็จ 100%)<br>Inbound Buying Engine<br>• ตาราง rubber_purchases<br>• รหัส PB-YYMMXXXX<br>• คำนวณเงินสด / DRC%<br>• 30 Tests Passed"] --> P22["Phase 2.2 (เสร็จ 100%)<br>Lot Grouping Engine<br>• ตาราง rubber_lots<br>• รหัส LOT-YYMMXXXX<br>• เฉลี่ยต้นทุนต่อ กก.<br>• 32 Tests Passed"]
     P22 --> P23["Phase 2.3 (เสร็จ 100%)<br>Factory Sales Engine<br>• ตาราง rubber_sales<br>• รหัส SL-YYMMXXXX<br>• สรุปผลแล็บโรงงาน / P&L<br>• 37 Tests Passed"]
-    P23 --> P24["Phase 2.4 (เป้าหมายถัดไป)<br>UI Integration<br>• 5 แท็บตาม lot-trading-ui.html<br>• Feature Flag ใน Settings<br>• Zero-Impact ต่อระบบเดิม"]
+    P23 --> P24["Phase 2.4 (เสร็จ 100%)<br>UI & API Integration<br>• 5 แท็บตาม lot-trading-ui.html<br>• Worker Router & API Endpoints<br>• Feature Flag (Default: OFF)<br>• 40 Tests Passed"]
 ```
 
 ---
@@ -67,22 +67,47 @@ graph LR
 
 ---
 
+### 4. 💻 พัฒนา UI Integration & Real-time Analytics Dashboard (Phase 2.4)
+* **[`rubberDashboardService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberDashboardService.js):**
+  * โมดูลคำนวณสถิติภาพรวม Real-time (น้ำหนักวันนี้, ยอดเงินค้างรอจัด Lot, จำนวน Lot รอผลโรงงาน, จำนวนและกำไรสะสมของ Lot ที่ปิดแล้ว)
+* **[`backend-staging/src/index.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/index.js):**
+  * ติดตั้ง HTTP Endpoints เชื่อมต่อบริการระบบ Lot ยางพาราทั้งหมด:
+    * `/api/v1/rubber/dashboard`
+    * `/api/v1/rubber/purchases` & `/api/v1/rubber/purchases/unassigned` & `/api/v1/rubber/purchases/:purchaseNo/cancel`
+    * `/api/v1/rubber/lots` & `.../lock` & `.../unlock` & `.../cancel`
+    * `/api/v1/rubber/sales` & `.../settle` & `.../cancel`
+* **[`RubberLotTrading.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/RubberLotTrading.jsx):**
+  * แปลง Prototype `lot-trading-ui.html` มาเป็น React Component ที่สมบูรณ์แบบครบ 5 แท็บ:
+    1. **01 ภาพรวม (Dashboard):** Stat cards, Lot stamps, Recent purchases
+    2. **02 บันทึกซื้อ (Buy Ticket):** ฟอร์มชั่งซื้อหน้าลาน รันรหัส `PB-` พร้อมปุ่ม *"บันทึก + กรอกใบถัดไป"*
+    3. **03 รายการซื้อ / จัดกลุ่ม Lot (Records):** ตัวกรอง, ตารางเลือกบิล, ตรวจจับ Single Product Rule, แถบสรุปผลลอยตัว
+    4. **04 สร้างบิลขาย (Sell Builder):** สรุปต้นทุนเฉลี่ยถ่วงน้ำหนัก, ข้อมูลบิลขาย `SL-`, ส่งออกโรงงาน
+    5. **05 รอผลโรงงาน (Factory DRC):** บันทึกผลชั่งจริงและแล็บ DRC, คำนวณกำไร-ขาดทุนสุทธิ และ Margin/กก.
+* **Feature Flag & ความปลอดภัยระดับสูงสุด (100% UX/UI Design Lock):**
+  * ติดตั้งสวิตช์ควบคุมใน [`SettingsModal.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/SettingsModal.jsx) (Default: ปิด)
+  * เมนูใน [`Sidebar.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/Sidebar.jsx) และ Route ใน [`App.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/App.jsx) จะแสดงผลเมื่อเปิดสวิตช์เท่านั้น ระบบเดิมจึงปลอดภัย 100%
+* **[`verifyRubberHttpRoutes.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/test/verifyRubberHttpRoutes.js):**
+  * ชุดทดสอบ Unit Test 40 ข้อ ผ่านครบ 40/40 ข้อ 100%
+
+---
+
 ## 🧪 สรุปผลการทดสอบระบบ Staging Backend ทั้งหมด (All Tests Passed)
 
 ```text
-🧪 1. Sequence Engine (Phase 0.2):         13 Passed, 0 Failed
-🧪 2. Idempotency Guard (Phase 0.3):       15 Passed, 0 Failed
-🧪 3. Immutable Audit Log (Phase 0.4):     20 Passed, 0 Failed
-🧪 4. Auth & RBAC System (Phase 0.5):      23 Passed, 0 Failed
-🧪 5. Document CRUD Engine (Phase 1.1):    20 Passed, 0 Failed
-🧪 6. Google Sheets Sync (Phase 1.2):      16 Passed, 0 Failed
-🧪 7. Staging Client & Toggle (Phase 1.3):  8 Passed, 0 Failed
-🧪 8. Rubber Purchase Engine (Phase 2.1):  30 Passed, 0 Failed
-🧪 9. Rubber Lot Engine (Phase 2.2):       32 Passed, 0 Failed
-🧪 10. Rubber Sales Engine (Phase 2.3):    37 Passed, 0 Failed
+🧪 1. Sequence Engine (Phase 0.2):           13 Passed, 0 Failed
+🧪 2. Idempotency Guard (Phase 0.3):         15 Passed, 0 Failed
+🧪 3. Immutable Audit Log (Phase 0.4):       20 Passed, 0 Failed
+🧪 4. Auth & RBAC System (Phase 0.5):        23 Passed, 0 Failed
+🧪 5. Document CRUD Engine (Phase 1.1):      20 Passed, 0 Failed
+🧪 6. Google Sheets Sync (Phase 1.2):        16 Passed, 0 Failed
+🧪 7. Staging Client & Toggle (Phase 1.3):    8 Passed, 0 Failed
+🧪 8. Rubber Purchase Engine (Phase 2.1):    30 Passed, 0 Failed
+🧪 9. Rubber Lot Engine (Phase 2.2):         32 Passed, 0 Failed
+🧪 10. Rubber Sales Engine (Phase 2.3):      37 Passed, 0 Failed
+🧪 11. Rubber HTTP Routes & UI (Phase 2.4):  40 Passed, 0 Failed
 
-🏆 รวมผลการทดสอบทั้งหมดของระบบ: 214 Passed, 0 Failed (100% Pass Rate)
-🚀 Frontend Production Build:       ✓ 1,607 modules transformed (Built in 1.68s)
+🏆 รวมผลการทดสอบทั้งหมดของระบบ: 254 Passed, 0 Failed (100% Pass Rate)
+🚀 Frontend Production Build:       ✓ 1,609 modules transformed (Built in 1.82s)
 ```
 
 ---
@@ -101,6 +126,7 @@ graph LR
 | **Rubber Purchases (2.1)** | 30 ข้อ | คำนวณเงินสด/DRC ซื้อยางหน้าลานแม่นยำระดับสตางค์ ป้องกันเงินรั่วไหล |
 | **Rubber Lots (2.2)** | 32 ข้อ | คุมคุณภาพยาง 1 Lot ชนิดเดียวกัน 100% และคำนวณต้นทุนเฉลี่ยถ่วงน้ำหนัก |
 | **Rubber Sales & P&L (2.3)** | 37 ข้อ | คำนวณเงินโอนโรงงานตามผลแล็บจริง หักค่าขนส่ง/ค่าปรับ สรุปกำไรต่อ กก. |
+| **Rubber HTTP & UI (2.4)** | 40 ข้อ | ตรวจสอบการเชื่อมต่อ API ครบวงจร ทั้งซื้อ-รวม Lot-ส่งขาย-สรุปผล และแดชบอร์ด |
 
 ---
 
@@ -108,7 +134,8 @@ graph LR
 
 | ส่วนประกอบระบบ | สถานะการตรวจสอบ | ผลลัพธ์ |
 |:---|:---:|:---|
-| **Frontend Production Mode** | ค่าเริ่มต้น Default เป็น Production 100% | ✅ ปลอดภัย ผู้ใช้หน้าเว็บทำงานได้ตามปกติ |
+| **Frontend Production Mode** | ค่าเริ่มต้น Feature Flag เป็น "ปิด" (OFF) 100% | ✅ ปลอดภัย ผู้ใช้หน้าเว็บทำงานได้ตามปกติ |
+| **Receipts & Vouchers UX/UI** | ล็อค 100% ไม่มีการดัดแปลงดีไซน์เดิม | ✅ ปลอดภัย ดีไซน์เดิมสมบูรณ์ 100% |
 | **Production Worker (`cloudflare-worker/`)** | ไม่มีการแตะต้อง 100% | ✅ ปลอดภัย API เดิมทำงานได้ตามปกติ |
 | **Google Apps Script Backend** | ไม่มีการแตะต้อง 100% | ✅ ปลอดภัย ซิงค์ข้อมูลลงชีตได้ตามปกติ |
 | **Google Sheets Database** | ไม่มีการแตะต้อง 100% | ✅ ปลอดภัย ข้อมูลจริงไม่ได้รับผลกระทบ |
@@ -130,8 +157,8 @@ graph LR
 | **Phase 2.1** | Inbound Weighing & Purchase Engine (ระบบชั่งซื้อยางหน้าลาน PB-YYMMXXXX) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 30/30 ข้อ |
 | **Phase 2.2** | Lot Grouping Engine (ระบบรวมบิลซื้อเข้า Lot สินค้า LOT-YYMMXXXX) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 32/32 ข้อ |
 | **Phase 2.3** | Outbound Factory Sales Engine (ระบบบิลส่งขายโรงงาน SL-YYMMXXXX) | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 37/37 ข้อ |
-| **Phase 2.4** | Real-time P&L Analytics & React UI Integration | ⏳ **เป้าหมายถัดไป** | เริ่มพัฒนา Phase 2.4 |
-| **Phase 3** | Automated R2 Backup & Monitoring (Sentry / Cloudflare Logpush) | ⏳ รอดำเนินการ | หลังจบ Phase 2 |
+| **Phase 2.4** | Real-time P&L Analytics & React UI Integration | ✅ **เสร็จสมบูรณ์ 100%** | ผ่าน Unit Test 40/40 ข้อ + Vite Build ผ่าน |
+| **Phase 3** | Automated R2 Backup & Monitoring (Sentry / Cloudflare Logpush) | ⏳ **เป้าหมายถัดไป** | เริ่มหลังตรวจรับ Phase 2 |
 
 ---
 
@@ -146,13 +173,7 @@ graph LR
 
 ---
 
-## 📦 รายการ Commit ที่เตรียมไว้ในเครื่องบน Branch `feature/backend-staging`
-
-1. `432e130`: `feat(phase-2.1): inbound rubber purchasing engine, schema tables & verification tests`
-2. `bc14f2e`: `feat(phase-2.2): rubber lot grouping, weighted average cost & aggregation engine`
-3. `6ca8ffb`: `feat(phase-2.3): factory sales engine, lab drc settlement & real-time pnl analytics`
-
-### 💻 คำสั่งสำหรับ Push ขึ้น GitHub:
+## 💻 คำสั่งสำหรับ Push ขึ้น GitHub:
 ```bash
 git push origin feature/backend-staging
 ```

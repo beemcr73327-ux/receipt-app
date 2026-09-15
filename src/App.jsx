@@ -12,6 +12,7 @@ import VoucherHistoryModal from './components/VoucherHistoryModal';
 import SettingsModal from './components/SettingsModal';
 import UserManagementModal from './components/UserManagementModal';
 import BankAccountManagement from './components/BankAccountManagement';
+import RubberLotTrading from './components/RubberLotTrading';
 import { storageService } from './services/storageService';
 
 export default function App() {
@@ -317,6 +318,10 @@ export default function App() {
 
             {activePage === 'settings' && (
               <SettingsModal />
+            )}
+
+            {activePage === 'rubber_trading' && (
+              <RubberLotTrading currentUser={currentUser} />
             )}
           </main>
 

@@ -41,27 +41,31 @@ export function calculateLotAggregates(tickets = []) {
  * @returns {Promise<object>}
  */
 export async function createLot(db, payload, options = {}) {
-  const {
-    lotName,
-    productType,
-    ticketNos = [],
-    lotDate
-  } = payload;
-
-  if (!lotName || !String(lotName).trim()) {
-    throw new Error('กรุณาระบุชื่อเรียก Lot (lotName)');
-  }
-
-  if (!productType || !String(productType).trim()) {
-    throw new Error('กรุณาระบุประเภทยางพาราสำหรับ Lot (productType)');
-  }
-
-  const cleanProductType = String(productType).trim();
-  const cleanLotName = String(lotName).trim();
+  const ticketNos = payload.ticketNos || payload.purchaseTicketNos || [];
+  let productType = payload.productType || payload.product_type;
+  let lotName = payload.lotName || payload.name;
+  const lotDate = payload.lotDate || payload.date;
 
   if (!Array.isArray(ticketNos) || ticketNos.length === 0) {
     throw new Error('ต้องระบุใบชั่งซื้อ (ticketNos) อย่างน้อย 1 รายการเพื่อสร้าง Lot');
   }
+
+  // Auto-detect productType from first ticket if not explicitly provided
+  if (!productType || !String(productType).trim()) {
+    const firstNo = String(ticketNos[0]).trim();
+    const firstTicket = await db.prepare('SELECT * FROM rubber_purchases WHERE ticket_no = ?').bind(firstNo).first();
+    if (firstTicket && firstTicket.product_type) {
+      productType = firstTicket.product_type;
+    } else {
+      throw new Error('กรุณาระบุประเภทยางพาราสำหรับ Lot (productType)');
+    }
+  }
+
+  const cleanProductType = String(productType).trim();
+  if (!lotName || !String(lotName).trim()) {
+    lotName = `Lot ${cleanProductType} (${new Date().toLocaleDateString('th-TH')})`;
+  }
+  const cleanLotName = String(lotName).trim();
 
   // 1. ดึงและตรวจสอบความถูกต้องของใบชั่งซื้อทุกใบ
   const fetchedTickets = [];

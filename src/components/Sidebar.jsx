@@ -16,7 +16,8 @@ import {
   PanelLeftOpen,
   User,
   Landmark,
-  Zap
+  Zap,
+  Scale
 } from 'lucide-react';
 import { storageService } from '../services/storageService';
 
@@ -33,6 +34,7 @@ export default function Sidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const settings = storageService.getSettings();
   const isStaging = settings?.apiMode === 'staging';
+  const enableRubberLotTrading = settings?.enableRubberLotTrading === true;
   
   // Accordion state
   const [openGroups, setOpenGroups] = useState(() => {
@@ -270,6 +272,36 @@ export default function Sidebar({
             </div>
           )}
         </div>
+
+        {/* GROUP 3: ระบบ Lot ยางพารา (Phase 2 - ปรากฏเฉพาะเมื่อเปิดใช้งาน Feature Flag) */}
+        {enableRubberLotTrading && (
+          <div className="pt-2">
+            {!collapsed && (
+              <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
+                <span>ซื้อขายยางพารา</span>
+                <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">Phase 2</span>
+              </div>
+            )}
+
+            <button
+              onClick={() => onNavigate('rubber_trading')}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-semibold transition cursor-pointer border ${
+                activePage === 'rubber_trading'
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold shadow-2xs'
+                  : 'text-slate-700 border-transparent hover:text-slate-900 hover:bg-slate-50'
+              }`}
+              title="ระบบซื้อขายและจัดการ Lot ยางพารา"
+            >
+              <div className="flex items-center gap-2.5">
+                <Scale className="w-4.5 h-4.5 text-[#8C6239] shrink-0" />
+                {!collapsed && <span>ระบบ Lot ยางพารา</span>}
+              </div>
+              {!collapsed && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* SYSTEM TOOLS: ตั้งค่าระบบ (แสดงเฉพาะ Admin เท่านั้น) */}
         {currentUser?.role === 'Admin' && (

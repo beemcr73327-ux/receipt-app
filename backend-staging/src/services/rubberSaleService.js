@@ -77,13 +77,11 @@ export function calculateSaleSettlement(lot, settlementInput) {
  * @returns {Promise<object>}
  */
 export async function createSaleRecord(db, payload, options = {}) {
-  const {
-    lotNo,
-    factoryName,
-    shipDate,
-    outboundWeightKg,
-    sellingPricePerKg
-  } = payload;
+  const lotNo = payload.lotNo || payload.lot_no;
+  const factoryName = payload.factoryName || payload.destinationFactory || payload.factory;
+  const shipDate = payload.shipDate || payload.shippingDate || payload.date;
+  const outboundWeightKg = payload.outboundWeightKg !== undefined ? payload.outboundWeightKg : payload.weight;
+  const rawPrice = payload.sellingPricePerKg || payload.sellingPrice || payload.price;
 
   if (!lotNo || !String(lotNo).trim()) {
     throw new Error('กรุณาระบุเลขที่ Lot ที่ต้องการส่งขาย (lotNo)');
@@ -93,10 +91,7 @@ export async function createSaleRecord(db, payload, options = {}) {
     throw new Error('กรุณาระบุชื่อโรงงานปลายทาง (factoryName)');
   }
 
-  const sellingPrice = parseFloat(sellingPricePerKg);
-  if (isNaN(sellingPrice) || sellingPrice <= 0) {
-    throw new Error('ราคาตกลงขายต่อ กก. (sellingPricePerKg) ต้องมากกว่า 0');
-  }
+  const sellingPrice = rawPrice !== undefined && rawPrice !== null ? Math.max(0, parseFloat(rawPrice) || 0) : 0;
 
   // 1. ดึงข้อมูล Lot เพื่อตรวจสอบสถานะ
   const cleanLotNo = String(lotNo).trim();

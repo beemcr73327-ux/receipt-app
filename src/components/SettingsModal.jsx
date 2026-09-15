@@ -29,6 +29,7 @@ export default function SettingsModal() {
   const [webhookUrl, setWebhookUrl] = useState(currentSettings.webhookUrl || '');
   const [cloudflareWorkerUrl, setCloudflareWorkerUrl] = useState(currentSettings.cloudflareWorkerUrl || '');
   const [stagingApiUrl, setStagingApiUrl] = useState(currentSettings.stagingApiUrl || DEFAULT_STAGING_API_URL);
+  const [enableRubberLotTrading, setEnableRubberLotTrading] = useState(currentSettings.enableRubberLotTrading || false);
 
   const [copied, setCopied] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -52,6 +53,17 @@ export default function SettingsModal() {
     }
   };
 
+  const handleToggleRubberLotTrading = (enabled) => {
+    setEnableRubberLotTrading(enabled);
+    const updated = {
+      ...storageService.getSettings(),
+      enableRubberLotTrading: enabled
+    };
+    storageService.saveSettings(updated);
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2500);
+  };
+
   const handleSave = (e) => {
     e.preventDefault();
     storageService.saveSettings({
@@ -59,7 +71,8 @@ export default function SettingsModal() {
       apiMode,
       webhookUrl: webhookUrl.trim(),
       cloudflareWorkerUrl: cloudflareWorkerUrl.trim(),
-      stagingApiUrl: stagingApiUrl.trim() || DEFAULT_STAGING_API_URL
+      stagingApiUrl: stagingApiUrl.trim() || DEFAULT_STAGING_API_URL,
+      enableRubberLotTrading
     });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
@@ -329,6 +342,62 @@ function doGet(e) {
                 )}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* 2.5 FEATURE FLAGS (โมดูลเสริม & ระบบซื้อขาย Lot ยางพารา Phase 2) */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-emerald-600" />
+              <h3 className="text-xs font-bold text-slate-800">
+                ระบบโมดูลเสริมและระบบทดลอง (Feature Flags - Phase 2)
+              </h3>
+            </div>
+            <span className="px-2 py-0.5 text-[10.5px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+              Enterprise 5.0
+            </span>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200/80 bg-slate-50/50 hover:bg-slate-50 transition">
+            <div className="space-y-1 max-w-xl">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-800 text-xs">
+                  ระบบซื้อขายและจัดการ Lot ยางพารา (Rubber Lot Trading Engine)
+                </span>
+                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                  enableRubberLotTrading 
+                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' 
+                    : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {enableRubberLotTrading ? 'เปิดใช้งาน (Active)' : 'ปิดอยู่ (Disabled)'}
+                </span>
+              </div>
+              <p className="text-[11.5px] text-slate-500 leading-relaxed">
+                เปิดหน้าจอระบบจัดการ Lot ยางพารา 5 แท็บ (ภาพรวม Dashboard, บันทึกใบชั่งซื้อหน้าลาน PB-, รวมกลุ่มจัด Lot, สร้างบิลส่งขายโรงงาน SL-, และบันทึกผลแล็บ DRC สรุปกำไร-ขาดทุนสุทธิ)
+              </p>
+              <p className="text-[10.5px] text-slate-400">
+                * ปิดไว้เป็นค่าเริ่มต้น (Default: OFF) เพื่อรับประกันความปลอดภัยและไม่กระทบหน้าใบเสร็จ/ใบสำคัญจ่ายเดิม 100%
+              </p>
+            </div>
+
+            <div className="flex items-center shrink-0">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={enableRubberLotTrading}
+                onClick={() => handleToggleRubberLotTrading(!enableRubberLotTrading)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${
+                  enableRubberLotTrading ? 'bg-emerald-600' : 'bg-slate-300'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                    enableRubberLotTrading ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
 
