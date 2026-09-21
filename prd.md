@@ -1,228 +1,226 @@
 # 📄 Product Requirement Document (PRD) — Financial & Rubber Lot Management System
 
-> **ระบบออกใบเสร็จรับเงิน ใบสำคัญจ่าย บันทึกบัญชี และระบบซื้อขาย Lot ยางพารา**  
-> **บริษัท ศรีสุข พูนทรัพย์ ยางพารา จำกัด**  
-> **เวอร์ชันเอกสาร:** 5.0 (Phase 2 Enterprise Edition)  
-> **วันที่อัปเดตล่าสุด:** 15 กันยายน 2569 (2026-09-15)
+> **ชื่อโครงการ:** ระบบออกใบเสร็จรับเงิน ใบสำคัญจ่าย บันทึกบัญชี และระบบซื้อขาย Lot ยางพารา  
+> **องค์กร:** บริษัท ศรีสุข พูนทรัพย์ ยางพารา จำกัด  
+> **เวอร์ชันเอกสาร:** 5.1 (Enterprise Production & Staging Specification)  
+> **วันที่อัปเดตล่าสุด:** 21 กันยายน 2569 (2026-09-21)  
+> **สาขา Git:** `feature/backend-staging`  
+> **สถานะโครงการ:** ระบบการเงิน (ใบเสร็จ/ใบสำคัญจ่าย) พร้อมใช้งาน 100% | ระบบสต็อกยางพารา (หลังบ้านเสร็จ 100%, รอปรับแต่ง UX/UI)
 
 ---
 
-## 1. 🎯 วัตถุประสงค์ของโปรเจกต์ (Project Overview & Objectives)
+## 1. 🎯 วัตถุประสงค์และภาพรวมโครงการ (Project Overview & Business Goals)
 
-ระบบเว็บแอปพลิเคชันบริหารจัดการเอกสารทางการเงิน การบัญชี และระบบซื้อขาย Lot ยางพารา พัฒนาขึ้นเพื่อทดแทนกระดาษ ลดความผิดพลาดในการคำนวณเงินสด/ส่วนลด/DRC และยกระดับสู่สถาปัตยกรรมระดับองค์กร (Enterprise Edge Architecture) โดยครอบคลุม 4 โมดูลหลัก:
+ระบบเว็บแอปพลิเคชันบริหารจัดการเอกสารทางการเงิน การบัญชี และระบบซื้อขายยางพาราของ **บริษัท ศรีสุข พูนทรัพย์ ยางพารา จำกัด** พัฒนาขึ้นเพื่อทดแทนการทำงานด้วยเอกสารกระดาษ ขจัดความผิดพลาดในการคำนวณเงินสด/ส่วนลด/ค่าเปอร์เซ็นต์เนื้อยางแห้ง (DRC%) และยกระดับสู่สถาปัตยกรรมระดับองค์กร (Cloudflare Edge & Serverless Architecture) 
 
-1. **ระบบออกใบเสร็จรับเงิน (Receipt Management):** สร้าง ค้นหา ยกเลิก และพิมพ์ใบเสร็จรับเงินมาตรฐาน A4 (ธีมสีเขียวมรกต Emerald)
-2. **ระบบออกใบสำคัญจ่าย (Payment Voucher Management):** สร้าง ค้นหา ยกเลิก และพิมพ์ใบสำคัญจ่ายมาตรฐาน A4 พร้อมแปลงตัวเลขเป็นคำอ่านภาษาไทย (ธีมสีแดงกุหลาบ Rose)
-3. **ระบบบันทึกข้อมูลบัญชี (Bank Account Management):** จัดการบัญชีธนาคารสำหรับรับชำระเงินและจ่ายเงิน พร้อมไอคอนทางการของธนาคารไทยครบวงจร
-4. **ระบบซื้อขาย Lot ยางพาราและสต็อกสินค้า (Rubber Lot Trading & Stock):** บันทึกการชั่งซื้อยางหน้าลาน (`PB-`), จัดกลุ่มรายการซื้อเข้า Lot (`LOT-`), ออกบิลขายส่งโรงงาน (`SL-`), บันทึกผลชั่ง/DRC จริง, และคำนวณสรุปผลกำไร-ขาดทุน (P&L Dashboard)
+### เป้าหมายทางธุรกิจ (Business Objectives)
+1. **ความถูกต้องแม่นยำ 100% ทางการเงิน:** คำนวณยอดเงินภาษี, หัก ณ ที่จ่าย, ส่วนลด, และ DRC% ถูกต้องระดับสตางค์ พร้อมฟังก์ชันแปลงตัวเลขเป็นคำอ่านภาษาไทยอัตโนมัติ
+2. **ขจัดปัญหาเลขที่เอกสารชนกัน (Zero Sequence Collision):** มีระบบรันเลขเอกสารรายเดือน `YYMMXXXX` แบบ Atomic จากฝั่งเซิร์ฟเวอร์ ออกบิลพร้อมกันได้ไม่ซ้ำกัน
+3. **ป้องกันการบันทึกเบิ้ลเวลาอินเทอร์เน็ตหน่วง (Anti-Duplicate Guarantee):** ป้องกันเงินรั่วไหลและการตัดสต็อกซ้ำด้วยเทคโนโลยี Idempotency Guard
+4. **ความโปร่งใสและตรวจสอบได้ (Immutable Audit Trail):** ทุกการแก้ไขและยกเลิกเอกสารถูกบันทึกประวัติแบบบล็อกเชน (Cryptographic Hash Chaining)
+5. **ความต่อเนื่องทางธุรกิจ (Business Continuity):** สำรองข้อมูลอัตโนมัติทุกวันขึ้น Cloudflare R2 พร้อมตรวจวัดสถานะระบบ (Health Check) แบบ Real-time
 
 ---
 
-## 2. 🏛️ โครงสร้างสถาปัตยกรรมระบบ (System Architecture)
+## 2. 🚦 กลยุทธ์การแบ่งระยะปล่อยระบบ (Phased Release Strategy)
 
-### 2.1 สถาปัตยกรรมเป้าหมายเวอร์ชัน 5.0 (Target Architecture)
+เพื่อให้สอดคล้องกับความต้องการของผู้ใช้งาน ที่ต้องการเน้นใช้งานส่วนใบเสร็จรับเงินและใบสำคัญจ่ายก่อน ระบบจึงถูกแบ่งสโคปการทำงานออกเป็น 2 กลุ่มอย่างชัดเจน:
+
+```mermaid
+graph TD
+    subgraph ActiveScope["🟢 สโคปที่ 1: ระบบการเงิน (เปิดใช้งานจริงทันที)"]
+        R1["ใบเสร็จรับเงิน (Receipts)<br>• ออกบิล A4 ธีม Emerald<br>• คำนวณเงินสด / DRC%<br>• ยกเลิกพร้อม Audit Log"]
+        V1["ใบสำคัญจ่าย (Payment Vouchers)<br>• ออกบิล A4 ธีม Rose<br>• แปลงตัวเลขเป็นคำอ่านไทย<br>• บันทึกเลขที่บัญชีธนาคาร"]
+        B1["จัดการบัญชีธนาคาร & รายงาน<br>• สมุดบัญชีธนาคารไทยครบวงจร<br>• กรองปฏิทิน & ค้นหา Real-time<br>• สำรองข้อมูลลง Google Sheets"]
+    end
+
+    subgraph DeferredScope["🟡 สโคปที่ 2: ระบบสต็อก Lot ยางพารา (รอปรับแต่ง UX/UI)"]
+        S1["ระบบซื้อขาย Lot ยางพารา (Rubber Lot Trading)<br>• ใบชั่งซื้อหน้าลาน (PB-)<br>• จัดกลุ่ม Lot รวมชื่อผู้ขาย (LOT-)<br>• บิลขายโรงงาน & สรุป P&L (SL-)<br>• สถานะ: หลังบ้านเสร็จ 100% / พัก UX/UI ด้วย Feature Flag"]
+    end
+```
+
+### สรุปสโคปตามนโยบายผู้ใช้งาน:
+* **สโคปที่ 1 (Active Scope - พร้อมใช้งานทันที):** ระบบออกใบเสร็จรับเงิน, ใบสำคัญจ่าย, พิมพ์เอกสาร A4, จัดการบัญชีธนาคาร และซิงค์ Google Sheets — **ดีไซน์และ UX/UI ล็อค 100% ห้ามแก้ไขเด็ดขาด**
+* **สโคปที่ 2 (Deferred Scope - พักไว้รอ UX/UI):** ระบบสต็อกและการซื้อขาย Lot ยางพารา — **ซ่อนเมนูไว้ด้วย Feature Flag (`enableRubberLotTrading: false`)** โดยระบบหลังบ้าน (Database, Sequence, API, Calculations) เสร็จสมบูรณ์ 100% แล้ว เมื่อพร้อมปรับปรุง UX/UI จึงจะเปิดสวิตช์ใช้งาน
+
+---
+
+## 3. 🏛️ โครงสร้างสถาปัตยกรรมระบบ (System Architecture)
+
+ระบบทำงานบนสถาปัตยกรรม Cloudflare Edge Serverless ที่มีความเร็วสูงระดับ Global Low-Latency:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        Frontend (React + Vite + Tailwind CSS)          │
-│  ├── ReceiptForm / ReceiptHistoryModal / PrintReceipt                  │
-│  ├── VoucherForm / VoucherHistoryModal / PrintVoucher                  │
-│  ├── BankAccountManagement / SettingsModal / Staging Toggle            │
-│  └── LotTrading (5 Views): Dashboard, Buy, Lot Mix, Sell, Factory P&L   │
+│                        Frontend Layer (React 18 + Vite)                │
+│  ├── ReceiptForm / ReceiptHistoryModal / PrintReceipt (A4 Emerald)    │
+│  ├── VoucherForm / VoucherHistoryModal / PrintVoucher (A4 Rose)        │
+│  ├── BankAccountManagement / SettingsModal / Feature Flag Toggle       │
+│  └── [Feature Flag OFF] RubberLotTrading (5 Tabs: Dashboard, Buy, Mix, Sell, DRC) │
 └───────────────────────────────────┬────────────────────────────────────┘
-                                    │ (RESTful API / JWT Bearer / Idempotency Key)
+                                    │ (RESTful API + UTF-8 Body + Idempotency-Key)
                                     ▼
 ┌────────────────────────────────────────────────────────────────────────┐
-│             Cloudflare Worker Backend (Application Layer)              │
-│  ├── Authentication (PBKDF2/SHA-256 Hashing + JWT + RBAC)              │
-│  ├── Atomic Sequence Engine (YYMMXXXX Generator: PB-, LOT-, SL-)       │
+│             Cloudflare Worker API Layer (backend-staging/)             │
+│  ├── Dual-Stack Local Server (0.0.0.0 IPv4 & ::1 IPv6)                 │
+│  ├── Atomic Sequence Engine (YYMMXXXX Generator)                       │
 │  ├── Idempotency Guard (UUIDv4 Anti-duplicate Lock)                    │
-│  ├── Immutable Audit Logger (SHA-256 Hash Chaining)                    │
-│  └── Rubber Trading Services (Purchase, Lot, Sale & P&L Engine)        │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-           ┌────────────────────────┴────────────────────────┐
-           ▼                                                 ▼
-┌──────────────────────────────────────┐          ┌──────────────────────┐
-│  Cloudflare D1 (SQLite Database)     │          │ Cloudflare R2        │
-│  - Single Source of Truth (SSOT)     │          │ - Automated Backup   │
-│  - 12 Tables + Normalized Constraints│          └──────────────────────┘
-│  - Strict FK Locks & Indexes         │                     │ (Sync Service)
-└──────────────────────────────────────┘                     ▼
-                                                  ┌──────────────────────┐
-                                                  │ Google Sheets        │
-                                                  │ - Read-Only Report   │
-                                                  └──────────────────────┘
+│  ├── Immutable Audit Logger (SHA-256 Hash Chained Box)                 │
+│  ├── Financial Document Service (Receipts & Vouchers CRUD)             │
+│  ├── Rubber Trading Services (Purchase, Lot Grouping, Factory Sale)    │
+│  ├── Automated Backup Engine (Daily Cron Trigger: 0 18 * * *)         │
+│  └── System Health Observability Engine (/api/v1/system/health)        │
+└───────────────────┬───────────────────────────────┬────────────────────┘
+                    │                               │
+           (SQLite D1 Binding)            (R2 Bucket Binding)
+                    ▼                               ▼
+┌──────────────────────────────────────┐  ┌──────────────────────────────┐
+│  Cloudflare D1 Database (SQLite)     │  │ Cloudflare R2 Storage        │
+│  - Single Source of Truth (SSOT)     │  │ - Automated Daily Snapshots  │
+│  - 7 Core Tables + Strict Foreign Keys│ │ - SHA-256 Integrity Checksum │
+│  - Normalized Schema (UTF-8 Thai)    │  │ - Pointer: backups/latest.json│
+└───────────────────┬──────────────────┘  └──────────────────────────────┘
+                    │ (ctx.waitUntil Background Worker)
+                    ▼
+┌──────────────────────────────────────┐
+│  Google Sheets Database (Backup)     │
+│  - Read-Only Analytical Backup       │
+│  - Apps Script Webhook Replication   │
+└──────────────────────────────────────┘
 ```
 
 ---
 
-## 3. 📊 โครงสร้างฐานข้อมูล Cloudflare D1 (Database Schema)
+## 4. 📄 ข้อกำหนดฟังก์ชันระบบการเงิน (Financial Modules Specification — Active Scope)
 
-| ตาราง (Table) | หน้าที่การทำงาน | ฟิลด์สำคัญ (Key Columns) |
+### 4.1 ระบบออกใบเสร็จรับเงิน (Receipt Management)
+* **รหัสเอกสาร:** รันเลขอัตโนมัติในรูปแบบ `YYMMXXXX` (เช่น `69090001` โดย 69 คือปี พ.ศ. 2569 และ 09 คือเดือนกันยายน) รีเซ็ตลำดับใหม่ทุกต้นเดือน
+* **แบบฟอร์มการกรอก:**
+  * ข้อมูลลูกค้า (ชื่อ, ที่อยู่, เลขประจำตัวผู้เสียภาษี 13 หลัก)
+  * ช่องทางการชำระเงิน: เงินสด, เงินโอน, เช็ค
+  * การเลือกบัญชีธนาคารปลายทาง (กรณีเลือกเงินโอน)
+  * รายการสินค้า: ชื่อสินค้า, จำนวน, ราคาต่อหน่วย, เปอร์เซ็นต์ DRC%, ยอดรวมสุทธิ
+  * ยอดส่วนลดท้ายบิล และหมายเหตุ
+* **ฟังก์ชันการพิมพ์:** ออกแบบสำหรับกระดาษมาตรฐาน A4 ธีมสีเขียวมรกต (Emerald Green) มีต้นฉบับ/สำเนา ตราประทับ วันที่ และลายเซ็นผู้รับเงิน
+* **การยกเลิกเอกสาร:** สามารถยกเลิกใบเสร็จได้โดยต้องระบุเหตุผลในการยกเลิก โดยระบบจะเก็บประวัติลง Audit Log และคงเลขที่เอกสารไว้เพื่อความถูกต้องตามหลักบัญชี
+
+### 4.2 ระบบออกใบสำคัญจ่าย (Payment Voucher Management)
+* **รหัสเอกสาร:** รันเลขอัตโนมัติในรูปแบบ `YYMMXXXX` (แยก Sequence อิสระจากใบเสร็จรับเงิน)
+* **แบบฟอร์มการกรอก:**
+  * ข้อมูลผู้รับเงิน (ชื่อ, ที่อยู่, เลขประจำตัวผู้เสียภาษี)
+  * รายละเอียดค่าใช้จ่ายแบบ Multi-item (ระบุวันที่, รายการค่าใช้จ่าย, ยอดเงิน)
+  * ข้อมูลการโอนเงิน (ธนาคารต้นทาง, ธนาคารปลายทาง, เลขที่บัญชี)
+  * **แปลงตัวเลขเป็นคำอ่านภาษาไทยอัตโนมัติ:** เช่น `12,500.50` $\rightarrow$ *"หนึ่งหมื่นสองพันห้าร้อยบาทห้าสิบสตางค์"*
+* **ฟังก์ชันการพิมพ์:** ออกแบบสำหรับกระดาษมาตรฐาน A4 ธีมสีแดงกุหลาบ (Rose Red) มีช่องสำหรับผู้จัดทำ, ผู้ตรวจสอบ, ผู้อนุมัติจ่าย, และผู้รับเงิน
+* **การยกเลิกเอกสาร:** บันทึกเหตุผลการยกเลิกและเวลาที่ยกเลิกอย่างรัดกุม
+
+### 4.3 ระบบจัดการบัญชีธนาคาร (Bank Account Management)
+* จัดเก็บสมุดบัญชีธนาคารของบริษัท รองรับธนาคารพาณิชย์ชั้นนำของไทย (SCB, KBANK, BBL, KTB, BAY, TTB, GSB ฯลฯ)
+* แสดงไอคอนและสีประจำธนาคารอย่างถูกต้อง
+* กำหนดประเภทการใช้งานของแต่ละบัญชี (ใช้ทั่วไป หรือเฉพาะใบสำคัญจ่าย)
+
+### 4.4 ระบบค้นหาและรายงานประวัติ (History & Search)
+* กรองประวัติตามช่วงวันที่ (ปฏิทินไทย), สถานะเอกสาร (ปกติ / ยกเลิก), และคำค้นหา (ชื่อลูกค้า, เลขที่เอกสาร)
+* ปุ่มสั่งพิมพ์ย้อนหลังได้ทันที
+
+---
+
+## 5. 🌿 ข้อกำหนดระบบซื้อขาย Lot ยางพารา (Rubber Lot Specification — Staging / Deferred Scope)
+
+> ⚠️ **หมายเหตุ:** ระบบส่วนนี้พัฒนาฝั่ง Backend Engine และ Database เสร็จสมบูรณ์ 100% แล้ว ปัจจุบันพักการใช้งานฝั่งหน้าบ้านไว้ด้วย Feature Flag เพื่อรอปรับแต่ง UX/UI ให้ตรงตามความต้องการของผู้ใช้งานในอนาคต
+
+### 5.1 การรับซื้อยางหน้าลาน (Inbound Purchasing)
+* รหัสตั๋วชั่งซื้อ: `PB-YYMMXXXX` (เช่น `PB-69090001`)
+* ฟิลด์ข้อมูล: เลขที่ใบชั่งกระดาษ (`paper_ref`), วันที่ซื้อ, ชื่อผู้ขาย, ชนิดยาง, น้ำหนักรวม (กก.), ราคาต่อหน่วย, ค่า DRC%, น้ำหนักแห้ง, และยอดเงินสุทธิ
+* รองรับยาง 6 ประเภทมาตรฐาน: ยางก้อน (AA), ขี้ยาง (BB), ยางแผ่นดิบ (CC), ยางแผ่นรมควัน (DD), น้ำยางสด (EE), เศษยาง (FF)
+
+### 5.2 การจัดกลุ่มและรวม Lot สินค้า (Lot Grouping & Metadata)
+* รหัส Lot: `LOT-YYMMXXXX` (เช่น `LOT-69090001`)
+* **ชื่อ Lot (`lot_name`):** รวมชื่อผู้ขายทั้งหมดใน Lot เข้าด้วยกันอัตโนมัติ เช่น *"กัน, สาลี, จากการ"*
+* **วันที่จัด Lot (`lot_date`):** บันทึกวันที่จัดกลุ่ม Lot อย่างชัดเจน
+* **Single Product Constraint:** บังคับ 1 Lot ต้องบรรจุยางชนิดเดียวกัน 100%
+* **Weighted Average Cost:** คำนวณต้นทุนเฉลี่ยถ่วงน้ำหนักต่อ กก. แบบ Real-time
+* วงจรสถานะ Lot: `OPEN` $\rightarrow$ `LOCKED` (ปิดผนึกพร้อมส่ง) $\rightarrow$ `SHIPPED` $\rightarrow$ `COMPLETED`
+
+### 5.3 การส่งขายโรงงานและการปิดยอดแล็บ (Factory Sale & Lab Settlement)
+* รหัสบิลขาย: `SL-YYMMXXXX` (เช่น `SL-69090001`)
+* **วันที่ส่งขาย (`sale_date`):** บันทึกวันที่ส่งมอบโรงงาน
+* **เลขอ้างอิง Lot (`ref_lot_no`):** ผูกโยงกับรหัส Lot สินค้าต้นทาง
+* บันทึกผลชั่งจริงหน้าโรงงานและค่าแล็บ DRC% จากโรงงาน
+* หักค่าปรับสิ่งเจือปน, ค่าขนส่ง, และค่าธรรมเนียมอื่นๆ
+* คำนวณผลสรุปกำไร-ขาดทุนสุทธิ (Net Profit), กำไรต่อ กก. (Margin/kg), และน้ำหนักสูญเสียระหว่างทาง (Weight Shrinkage)
+
+---
+
+## 6. 📊 โครงสร้างฐานข้อมูล Cloudflare D1 (Database Schema)
+
+ฐานข้อมูลประกอบด้วย 7 ตารางหลักที่ออกแบบตามหลัก Normalized Relational Database:
+
+| ชื่อตาราง | หน้าที่และคำอธิบาย | คีย์หลัก / ดัชนีสำคัญ |
 |:---|:---|:---|
-| **`users`** | ข้อมูลพนักงานและสิทธิ์ | `id`, `email`, `password_hash`, `salt`, `first_name`, `last_name`, `role` (Admin/Manager/User), `status` |
-| **`master_banks`** | สมุดบัญชีธนาคาร | `id`, `short_code`, `bank_name`, `account_no` (UNIQUE), `account_name`, `branch`, `usage` (ALL/PV) |
-| **`receipts`** | หัวใบเสร็จรับเงิน (Header) | `id`, `receipt_no` (UNIQUE), `doc_date`, `buyer_name`, `buyer_tax_id`, `payment_method`, `status`, `cashier_name` |
-| **`receipt_items`** | รายการย่อยในใบเสร็จ (Items) | `id`, `receipt_id` (FK), `item_title`, `quantity`, `unit_price`, `drc_percent`, `discount_amount`, `net_amount` |
-| **`vouchers`** | หัวใบสำคัญจ่าย (Header) | `id`, `voucher_no` (UNIQUE), `doc_date`, `receiver_name`, `overall_description`, `bank_account`, `status`, `cashier_name` |
-| **`voucher_items`** | รายการย่อยใบสำคัญจ่าย (Items) | `id`, `voucher_id` (FK), `item_date`, `description`, `amount` |
-| **`document_sequences`** | ตัวนับเลขที่เอกสาร Atomic | `doc_type`, `prefix` (e.g. 6909), `current_seq`, `manual_seed`, `updated_at` (PK: doc_type, prefix) |
-| **`idempotency_keys`** | ป้องกันการกดส่งซ้ำ | `key` (UUID), `endpoint`, `request_hash`, `response_body`, `status_code`, `created_at` |
-| **`audit_logs`** | กล่องดำบันทึกประวัติการเงิน | `id`, `prev_hash`, `record_hash`, `actor_email`, `action`, `resource_type`, `resource_id`, `details_json` |
-| **`rubber_purchases`** | บันทึกการชั่งซื้อยางหน้าลาน | `id`, `ticket_no` (UNIQUE), `paper_ref`, `purchase_date`, `branch`, `seller_name`, `product_type`, `weight_kg`, `unit_price`, `drc_percent`, `dry_weight_kg`, `total_amount`, `lot_id` (FK), `status` |
-| **`rubber_lots`** | หัวตารางรวม Lot ยางพารา | `id`, `lot_no` (UNIQUE), `lot_name`, `product_type`, `total_weight_kg`, `total_cost`, `avg_cost_per_kg`, `items_count`, `status` |
-| **`rubber_sales`** | บันทึกการส่งขายโรงงาน & P&L | `id`, `sale_no` (UNIQUE), `lot_id` (FK), `factory_name`, `ship_date`, `outbound_weight_kg`, `factory_weight_kg`, `factory_drc_percent`, `selling_price_per_kg`, `net_price_per_kg`, `gross_revenue`, `penalty_deduction`, `transport_cost`, `other_fees`, `net_revenue`, `net_profit`, `margin_per_kg`, `weight_shrinkage_kg`, `status` |
+| **`documents`** | จัดเก็บใบเสร็จรับเงินและใบสำคัญจ่าย (Header & Items ในตัว) | PK: `id`, UNIQUE: `document_no`, INDEX: `doc_type`, `doc_date` |
+| **`document_sequences`** | ตัวนับเลขที่เอกสาร Atomic ป้องกันเลขซ้ำ | PK: (`doc_type`, `prefix`) |
+| **`idempotency_keys`** | บันทึกกุญแจป้องกันการกดบันทึกซ้ำซ้อน | PK: `key` (UUIDv4), INDEX: `created_at` |
+| **`audit_logs`** | บันทึกประวัติการเงินแบบกล่องดำ (Hash Chained) | PK: `id`, INDEX: `resource_type`, `resource_id` |
+| **`rubber_purchases`** | บันทึกการชั่งซื้อยางหน้าลาน | PK: `id`, UNIQUE: `ticket_no`, FK: `lot_id` |
+| **`rubber_lots`** | หัวตารางรวม Lot สินค้ายางพารา | PK: `id`, UNIQUE: `lot_no`, INDEX: `product_type` |
+| **`rubber_sales`** | บันทึกการส่งขายโรงงานและผลกำไร-ขาดทุน | PK: `id`, UNIQUE: `sale_no`, FK: `lot_id`, INDEX: `ref_lot_no` |
 
 ---
 
-## 4. 🛡️ กลไกความปลอดภัยและระบบพื้นฐาน (Core Security Primitives)
+## 7. 🛡️ เสถียรภาพ ความปลอดภัย และการสำรองข้อมูล (Reliability & Security)
 
-### 4.1 Atomic Sequence Generator (Phase 0.2 ✅ เสร็จสมบูรณ์)
-- **ไฟล์:** [`sequenceService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/sequenceService.js)
-- **หลักการ:** ออกเลขที่เอกสารจากเซิร์ฟเวอร์แบบ Atomic ผ่านคำสั่ง Upsert พร้อม `RETURNING` ป้องกันเลขซ้ำและกระโดด 100%
-- **รูปแบบเลขที่เอกสาร:**
-  * ใบเสร็จรับเงิน: `YYMMXXXX` (เช่น `69090001`)
-  * ใบสำคัญจ่าย: `YYMMXXXX` (เช่น `69090001`)
-  * ใบชั่งซื้อยางหน้าลาน: `PB-YYMMXXXX` (เช่น `PB-69090001`)
-  * หัว Lot สินค้ายางพารา: `LOT-YYMMXXXX` (เช่น `LOT-69090001`)
-  * บิลส่งขายโรงงาน: `SL-YYMMXXXX` (เช่น `SL-69090001`)
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 13/13 ข้อ (`verifySequence.js`)
+### 7.1 Automated R2 Daily Backup
+* **ตั้งเวลาสำรองอัตโนมัติ:** Cloudflare Cron Trigger `0 18 * * *` (ตรงกับเวลา 01:00 น. ในประเทศไทย)
+* **การทำงาน:** สแนปช็อตข้อมูลครบทั้ง 7 ตาราง เข้ารหัสตรวจสอบความสมบูรณ์ด้วย SHA-256 Cryptographic Checksum
+* **ที่จัดเก็บ:** บันทึกลง Cloudflare R2 Bucket ในโครงสร้าง `backups/YYYY-MM/backup-YYYY-MM-DD-xxxx.json` พร้อมอัปเดต pointer `backups/latest.json`
+* **Local Emulation:** รองรับการสำรองข้อมูลในเครื่องผ่านโฟลเดอร์ `backend-staging/backups/` ทำงานได้แม้ไม่มีสัญญาณอินเทอร์เน็ต
 
-### 4.2 Idempotency Guard (Phase 0.3 ✅ เสร็จสมบูรณ์)
-- **ไฟล์:** [`idempotencyMiddleware.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/middleware/idempotencyMiddleware.js)
-- **หลักการ:** ป้องกันการกดบันทึกซ้ำด้วยการฉีด `X-Idempotency-Key` (UUIDv4) จาก Frontend หากมีการส่งคำขอซ้ำ ระบบจะคืนผลลัพธ์เดิมโดยไม่ประมวลผลซ้ำ
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 15/15 ข้อ (`verifyIdempotency.js`)
-
-### 4.3 Immutable Audit Logging (Phase 0.4 ✅ เสร็จสมบูรณ์)
-- **ไฟล์:** [`auditService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/auditService.js)
-- **หลักการ:** บันทึกประวัติการเงินแบบ Insert-Only โดยใช้เทคนิค Hash Chaining (SHA-256) ตรวจจับการทุจริตย้อนหลังได้ 100%
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 20/20 ข้อ (`verifyAuditLog.js`)
-
-### 4.4 JWT Authentication & Role-Based Access Control (Phase 0.5 ✅ เสร็จสมบูรณ์)
-- **ไฟล์:** [`authService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/authService.js)
-- **หลักการ:** แฮชรหัสผ่านด้วย PBKDF2/SHA-256 พร้อม Salt สุ่ม 16 ไบต์ ออกโทเค็น JWT และควบคุมสิทธิ์ตามบทบาท (Admin, Manager, User)
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 23/23 ข้อ (`verifyAuth.js`)
+### 7.2 ระบบเฝ้าระวังและตรวจสุขภาพ (System Health Diagnostics)
+* Endpoint: `GET /api/v1/system/health`
+* วัดค่าความหน่วงของฐานข้อมูล (Database Latency ในหน่วย ms)
+* ตรวจสอบความพร้อมของ R2 Backup Bucket และ Google Sheets Webhook
+* นับจำนวนเรคคอร์ดของเอกสารทางการเงินและตั๋วยางพาราทั้งหมดแบบ Real-time
 
 ---
 
-## 5. 📄 ระบบจัดการเอกสารทางการเงิน (Financial Document Engine)
+## 8. 🧪 ตารางสรุปผลการทดสอบระบบ (Verification & Quality Assurance)
 
-### 5.1 Document CRUD Engine (Phase 1.1 ✅ เสร็จสมบูรณ์)
-- **ไฟล์:** [`documentService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/documentService.js)
-- **ฟังก์ชัน:** สร้าง ค้นหา แบ่งหน้า และยกเลิกใบเสร็จและใบสำคัญจ่าย พร้อมคำนวณส่วนลดและ DRC%
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 20/20 ข้อ (`verifyDocuments.js`)
+ระบบผ่านการทดสอบครอบคลุมทั้งส่วนการเงินและส่วนยางพารา รวมทั้งสิ้น **13 ชุดทดสอบ (300/300 ข้อ ผ่าน 100%)**:
 
-### 5.2 Google Sheets Background Sync Service (Phase 1.2 ✅ เสร็จสมบูรณ์)
-- **ไฟล์:** [`googleSheetsSyncService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/googleSheetsSyncService.js)
-- **ฟังก์ชัน:** ซิงค์ข้อมูลลง Google Sheets แบบ Non-blocking ผ่าน `ctx.waitUntil` ทำให้หน้าเว็บตอบสนองรวดเร็วระดับเสี้ยววินาที
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 16/16 ข้อ (`verifyGoogleSheetsSync.js`)
-
-### 5.3 Frontend Migration & Backend Engine Toggle (Phase 1.3 ✅ เสร็จสมบูรณ์)
-- **ไฟล์:** [`stagingApiClient.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/stagingApiClient.js), [`storageService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/storageService.js), [`SettingsModal.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/SettingsModal.jsx)
-- **ฟังก์ชัน:** สลับโหมดการทำงานระหว่าง Production (เดิม) กับ Staging Edge 5.0 (ใหม่) พร้อมระบบทดสอบ Ping Latency
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 8/8 ข้อ (`verifyStagingClient.js`) และ Vite Build ผ่าน 100%
-
----
-
-## 6. 🌿 ระบบซื้อขายและจัดการ Lot ยางพารา (Phase 2: Rubber Lot Trading & P&L Engine)
-
-### 6.1 Phase 2.1: Inbound Weighing & Purchase Engine (✅ เสร็จสมบูรณ์ 100%)
-- **ไฟล์:** [`rubberPurchaseService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberPurchaseService.js)
-- **รหัสเอกสาร:** `PB-YYMMXXXX` (เช่น `PB-69090001`) พร้อมช่องระบุเลขที่ใบชั่งกระดาษอ้างอิง (`paper_ref`)
-- **ประเภทสินค้ามาตรฐาน 6 ชนิด:** `AA:ยางก้อน`, `BB:ขี้ยาง`, `CC:ยางแผ่นดิบ`, `DD:ยางแผ่นรมควัน (RSS)`, `EE:น้ำยางสด`, `FF:เศษยาง`
-- **สูตรคำนวณ:**
-  $$\text{Total Amount} = \begin{cases} \text{round}\left(\text{Weight} \times \text{Price} \times \frac{\text{DRC}\%}{100}, 2\right) & \text{ถ้ายางมี DRC} \\ \text{round}(\text{Weight} \times \text{Price}, 2) & \text{ถ้ายางไม่มี DRC} \end{cases}$$
-- **ความปลอดภัย:** ห้ามยกเลิกบิลชั่งซื้อที่ถูกจัดเข้า Lot แล้ว (`status === 'ASSIGNED'`)
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 30/30 ข้อ (`verifyRubberPurchases.js`)
-
-### 6.2 Phase 2.2: Lot Grouping & Aggregation Engine (✅ เสร็จสมบูรณ์ 100%)
-- **ไฟล์:** [`rubberLotService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberLotService.js)
-- **รหัส Lot:** `LOT-YYMMXXXX` (เช่น `LOT-69090001`)
-- **Single Product Rule:** 1 Lot ต้องบรรจุยางชนิดเดียวกัน 100% ห้ามผสมข้ามประเภทเด็ดขาด
-- **สูตรคำนวณต้นทุนเฉลี่ยถ่วงน้ำหนัก (Weighted Average Cost):**
-  $$\text{Avg Cost/kg} = \text{round}\left(\frac{\sum \text{Total Amount}}{\sum \text{Weight}}, 2\right)$$
-- **วงจรชีวิตและการล็อค:**
-  * `OPEN` $\leftrightarrow$ `LOCKED` (พร้อมจัดส่ง ห้ามแก้ไขบิล) $\rightarrow$ `SHIPPED` $\rightarrow$ `COMPLETED`
-  * การยกเลิก Lot (`cancelLot`) จะปลดบิลซื้อทั้งหมดคืนสู่คลัง (`UNASSIGNED`) อัตโนมัติ ป้องกันข้อมูลสูญหาย
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 32/32 ข้อ (`verifyRubberLots.js`)
-
-### 6.3 Phase 2.3: Outbound Factory Sales & Reconciliation Engine (✅ เสร็จสมบูรณ์ 100%)
-- **ไฟล์:** [`rubberSaleService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberSaleService.js)
-- **รหัสบิลขาย:** `SL-YYMMXXXX` (เช่น `SL-69090001`)
-- **ขั้นตอนการทำงาน:**
-  1. ส่งออก Lot ที่ `LOCKED` ออกบิลขาย `SL-` สถานะ `PENDING` และปรับสถานะ Lot เป็น `SHIPPED`
-  2. เมื่อโรงงานส่งผลชั่งและแล็บ DRC มา ให้เรียก `settleFactoryResult` เพื่อคำนวณ P&L และปรับสถานะเป็น `CLOSED` / `COMPLETED`
-- **สูตรคำนวณราคาขายและกำไร-ขาดทุน:**
-  $$\text{Net Price/kg} = \text{round}\left(\text{Selling Price} \times \frac{\text{Factory DRC}\%}{100}, 2\right)$$
-  $$\text{Gross Revenue} = \text{round}(\text{Factory Weight} \times \text{Net Price}, 2)$$
-  $$\text{Net Revenue} = \text{round}(\text{Gross Revenue} - \text{Penalty} - \text{Transport} - \text{Other Fees}, 2)$$
-  $$\text{Net Profit} = \text{round}(\text{Net Revenue} - \text{Total Lot Cost}, 2)$$
-  $$\text{Margin/kg} = \text{round}\left(\frac{\text{Net Profit}}{\text{Factory Weight}}, 2\right)$$
-  $$\text{Weight Shrinkage} = \text{round}(\text{Outbound Weight} - \text{Factory Weight}, 2)$$
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 37/37 ข้อ (`verifyRubberSales.js`)
-
-### 6.4 Phase 2.4: Real-time P&L Analytics & React UI Integration (✅ เสร็จสมบูรณ์ 100%)
-- **ไฟล์:** [`RubberLotTrading.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/RubberLotTrading.jsx), [`rubberLotApiClient.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/rubberLotApiClient.js), [`rubberDashboardService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberDashboardService.js)
-- แปลงต้นแบบ `lot-trading-ui.html` เป็น React Component 5 แท็บอย่างสมบูรณ์:
-  1. **01 Dashboard (ภาพรวม):** สรุปภาพรวมสต็อก, ทุนสะสม, กำไรสุทธิประจำเดือน
-  2. **02 Buy (บันทึกซื้อ):** ฟอร์มออกตั๋วชั่งซื้อ `PB-` พร้อมคำนวณ DRC อัตโนมัติและปุ่มบันทึกต่อเนื่อง
-  3. **03 Records / Lot Mix (รายการซื้อ & จัด Lot):** ตารางบิลซื้อหน้าลาน เลือกรวมเข้า Lot `LOT-` พร้อมกฎ Single Product Rule
-  4. **04 Sell (สร้างบิลขาย):** เลือก Lot ที่ปิดผนึก ออกบิลส่งมอบ `SL-` พร้อมเฉลี่ยต้นทุนถ่วงน้ำหนัก
-  5. **05 Factory & P&L (รอผลโรงงาน):** บันทึกผลแล็บโรงงาน คำนวณกำไรสุทธิแบบ Real-time
-- **Feature Flag Protection:** ควบคุมการแสดงผลเมนูผ่าน `SettingsModal.jsx` (Default: ปิด) ตามนโยบาย Zero-Impact 100%
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 40/40 ข้อ (`verifyRubberHttpRoutes.js`)
-
-### 6.5 Phase 2.4.1 - 2.4.4: Local Staging Environment & Real-time Live Watcher (✅ เสร็จสมบูรณ์ 100%)
-- **[`localServer.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/localServer.js) (`npm run staging:server`):**
-  - เซิร์ฟเวอร์จำลอง Cloudflare Worker + D1 SQLite ในเครื่องแบบ Zero-Dependency (Node 24 `DatabaseSync`)
-  - รองรับ Dual-Stack Socket (`0.0.0.0` IPv4 และ `::1` IPv6) ขจัดปัญหาการเชื่อมต่อบน macOS
-  - Normalized CORS Header ป้องกันปัญหา Chrome ปฏิเสธ Header ซ้ำซ้อน
-- **[`vite.config.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/vite.config.js):** Dev Server Reverse Proxy สำหรับ `/health` และ `/api`
-- **[`watchD1.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/watchD1.js) (`npm run d1:watch`):**
-  - หน้าปัดเฝ้าดูฐานข้อมูลสด Real-Time Live Monitor ตรวจจับข้อมูลทุก 0.5 วินาที พร้อมเสียงเตือนเมื่อมีข้อมูลใหม่ไหลเข้า
-
-### 6.6 Phase 3: Automated Cloudflare R2 Database Backup & System Health Monitoring (✅ เสร็จสมบูรณ์ 100%)
-- **ไฟล์:** [`backupService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/backupService.js), [`systemHealthService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/systemHealthService.js), [`wrangler.toml`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/wrangler.toml)
-- **ระบบสำรองข้อมูลอัตโนมัติ (Automated R2 Backup Engine):**
-  - ดึงข้อมูลครบทั้ง 7 ตารางหลัก (`receipts`, `vouchers`, `rubber_purchases`, `rubber_lots`, `rubber_sales`, `document_sequences`, `audit_logs`)
-  - คำนวณ SHA-256 Cryptographic Checksum รับประกันความสมบูรณ์ของข้อมูล 100%
-  - ตั้งเวลาสำรองข้อมูลอัตโนมัติผ่าน Cloudflare Cron Triggers (`0 18 * * *` หรือ 01:00 น. ตามเวลาไทย)
-  - จัดเก็บไฟล์ลงใน Cloudflare R2 Bucket: `backups/YYYY-MM/backup-YYYY-MM-DD-HHmmss-xxxxx.json` พร้อมอัปเดต pointer `backups/latest.json`
-  - รองรับ Local R2 Provider ในเครื่องผ่าน `backend-staging/backups/` ทำงานได้สมบูรณ์แบบโดยไม่ต้องต่อเน็ต
-- **ระบบตรวจสุขภาพระบบเชิงลึก (System Health & Observability):**
-  - `GET /api/v1/system/health`: วัด Response Time (ms) ของ D1, ตรวจสอบสถานะ R2, Google Sheets Webhook, และสรุปจำนวนเรคคอร์ดทั้งหมดในระบบ
-- **การทดสอบ:** ผ่านการทดสอบ Unit Test 44/44 ข้อ (`verifyBackupService.js` และ `verifySystemHealth.js`)
+| ลำดับ | ชุดทดสอบ (Test Suite) | จำนวนข้อ | ผลลัพธ์ | วัตถุประสงค์การตรวจสอบ |
+|:---:|:---|:---:|:---:|:---|
+| 1 | Sequence Engine (`verifySequence.js`) | 13 | ✅ ผ่าน 100% | เลขที่เอกสาร `YYMMXXXX` ไม่ซ้ำและไม่กระโดดข้าม |
+| 2 | Idempotency Guard (`verifyIdempotency.js`) | 15 | ✅ ผ่าน 100% | ป้องกันการกดส่งข้อมูลซ้ำ ไม่สร้างบิลเบิ้ล |
+| 3 | Immutable Audit Log (`verifyAuditLog.js`) | 20 | ✅ ผ่าน 100% | ตรวจจับการแก้ไขข้อมูลย้อนหลังด้วย Hash Chaining |
+| 4 | Auth & RBAC (`verifyAuth.js`) | 23 | ✅ ผ่าน 100% | แฮชรหัสผ่าน PBKDF2 และควบคุมสิทธิ์ผู้ใช้ |
+| 5 | Document CRUD (`verifyDocuments.js`) | 20 | ✅ ผ่าน 100% | ความถูกต้องของใบเสร็จและใบสำคัญจ่าย |
+| 6 | Google Sheets Sync (`verifyGoogleSheetsSync.js`) | 16 | ✅ ผ่าน 100% | การสำรองข้อมูลลงชีตแบบเบื้องหลังไม่ค้างหน้าเว็บ |
+| 7 | Staging Client (`verifyStagingClient.js`) | 8 | ✅ ผ่าน 100% | การเชื่อมต่อสลับโหมด Production/Staging |
+| 8 | Rubber Purchases (`verifyRubberPurchases.js`) | 30 | ✅ ผ่าน 100% | คำนวณเงินสดและ DRC% ซื้อยางหน้าลาน |
+| 9 | Rubber Lots (`verifyRubberLots.js`) | 32 | ✅ ผ่าน 100% | รวม Lot, ต้นทุนเฉลี่ยถ่วงน้ำหนัก, ล็อค Lot |
+| 10 | Rubber Sales (`verifyRubberSales.js`) | 39 | ✅ ผ่าน 100% | คำนวณผลแล็บโรงงาน หักค่าขนส่ง สรุป P&L |
+| 11 | Rubber HTTP & UI (`verifyRubberHttpRoutes.js`) | 40 | ✅ ผ่าน 100% | Endpoints API และการเชื่อมต่อหน้าเว็บ |
+| 12 | Backup Service (`verifyBackupService.js`) | 23 | ✅ ผ่าน 100% | สแนปช็อต D1, SHA-256 Checksum, จัดเก็บ R2 |
+| 13 | System Health (`verifySystemHealth.js`) | 21 | ✅ ผ่าน 100% | ตรวจสถานะระบบ, Latency, และ Cron Trigger |
+| **รวม** | **รวมผลการทดสอบทั้งหมดของระบบ** | **300** | **✅ 100%** | **ผ่านครบทุกข้อ ไม่มีข้อผิดพลาด (0 Failed)** |
 
 ---
 
-## 7. 🧪 ตารางสรุปผลการทดสอบระบบทั้งหมด (Test Suite Matrix)
-
-```text
-🧪 1. Sequence Engine (Phase 0.2):           13 Passed, 0 Failed
-🧪 2. Idempotency Guard (Phase 0.3):         15 Passed, 0 Failed
-🧪 3. Immutable Audit Log (Phase 0.4):       20 Passed, 0 Failed
-🧪 4. Auth & RBAC System (Phase 0.5):        23 Passed, 0 Failed
-🧪 5. Document CRUD Engine (Phase 1.1):      20 Passed, 0 Failed
-🧪 6. Google Sheets Sync (Phase 1.2):        16 Passed, 0 Failed
-🧪 7. Staging Client & Toggle (Phase 1.3):    8 Passed, 0 Failed
-🧪 8. Rubber Purchase Engine (Phase 2.1):    30 Passed, 0 Failed
-🧪 9. Rubber Lot Engine (Phase 2.2):         32 Passed, 0 Failed
-🧪 10. Rubber Sales Engine (Phase 2.3):      39 Passed, 0 Failed
-🧪 11. Rubber HTTP Routes & UI (Phase 2.4):  40 Passed, 0 Failed
-🧪 12. Backup Service & R2 (Phase 3):        23 Passed, 0 Failed
-🧪 13. System Health & Cron (Phase 3):       21 Passed, 0 Failed
-
-🏆 รวมผลการทดสอบทั้งหมดของระบบ: 300 Passed, 0 Failed (100% Pass Rate)
-🚀 Frontend Production Build:       ✓ 1,609 modules transformed (Built in 1.64s)
-```
-
----
-
-## 8. 🔒 กฎเหล็กข้อบังคับ: ล็อค UX/UI เดิม 100% (Strict UX/UI Lock Policy)
+## 9. 🔒 กฎเหล็กข้อบังคับ: ล็อค UX/UI เดิม 100% (Strict UX/UI Lock Policy)
 
 > ⚠️ **คำสั่งเด็ดขาดจากผู้ใช้ (User Constraint):**  
 > **"ห้ามแก้ไขในส่วนของ UX/UI เพราะพึงพอใจแล้ว"**
 
-* หน้าจอ `ReceiptForm`, `VoucherForm`, `ReceiptHistoryModal`, `VoucherHistoryModal`, `PrintReceipt`, `PrintVoucher`, `BankAccountManagement` **ล็อคตายตัว 100% ไม่มีการขยับหรือแก้ไขแม้แต่พิกเซลเดียว**
-* ระบบ Lot ยางพาราใหม่ทั้งหมดจะถูกบรรจุในโมดูลแยกต่างหาก และควบคุมด้วย Feature Flag เพื่อการันตีความปลอดภัยสูงสุด
+1. **หน้าตาและดีไซน์เดิมของระบบการเงิน 100%:**
+   - แบบฟอร์มใบเสร็จรับเงิน (`ReceiptForm`)
+   - แบบฟอร์มใบสำคัญจ่าย (`VoucherForm`)
+   - หน้าต่างประวัติและค้นหา (`HistoryModal`)
+   - หน้าจัดการบัญชีธนาคาร (`BankAccountManagement`)
+   - ฟอร์มพิมพ์ A4 ทั้งใบเสร็จและใบสำคัญจ่าย (`PrintReceipt`, `PrintVoucher`)
+   - สี, ขนาดตัวอักษร, ระยะขอบ, และไอคอนทั้งหมด **ล็อคตายตัว 100% ไม่มีการดัดแปลง**
+2. **ระบบใหม่แยกอิสระ:**
+   - โมดูลยางพาราถูกแยกเก็บใน [`RubberLotTrading.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/RubberLotTrading.jsx) และควบคุมด้วยสวิตช์ในหน้า Settings
+   - ผู้ใช้สามารถเปิดใช้งานเฉพาะระบบการเงินได้อย่างสบายใจ ปราศจากผลกระทบต่อระบบงานเดิม 100%
+
+---
+*เอกสาร PRD ฉบับสมบูรณ์ ได้รับการรับรองและอัปเดต ณ วันที่ 21 กันยายน 2569 (2026-09-21)*
