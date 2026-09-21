@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "staging:server": "kill -9 $(lsof -ti:8787) 2>/dev/null || true; node backend-staging/src/localServer.js",
+    "d1:watch": "node backend-staging/src/watchD1.js",
+    "d1:seed": "node backend-staging/src/seedRubberData.js",
+    "demo:rubber": "node backend-staging/src/test/runLiveRubberDemo.js"
   },
   "dependencies": {
     "html2pdf.js": "^0.14.0",

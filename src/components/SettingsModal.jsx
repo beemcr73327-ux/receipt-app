@@ -64,8 +64,20 @@ export default function SettingsModal() {
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
+  const handleSelectApiMode = (mode) => {
+    setApiMode(mode);
+    const updated = {
+      ...storageService.getSettings(),
+      apiMode: mode,
+      stagingApiUrl: stagingApiUrl.trim() || DEFAULT_STAGING_API_URL
+    };
+    storageService.saveSettings(updated);
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 2500);
+  };
+
   const handleSave = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     storageService.saveSettings({
       ...currentSettings,
       apiMode,
@@ -175,6 +187,15 @@ function doGet(e) {
             </h2>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={handleSave}
+          className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer self-end md:self-auto"
+        >
+          <Save className="w-4 h-4" />
+          <span>บันทึกการตั้งค่า</span>
+        </button>
       </div>
 
       {/* Main Content Workspace */}
@@ -227,7 +248,7 @@ function doGet(e) {
                   name="apiMode"
                   value="production"
                   checked={apiMode === 'production'}
-                  onChange={() => setApiMode('production')}
+                  onChange={() => handleSelectApiMode('production')}
                   className="w-4 h-4 text-emerald-600 focus:ring-emerald-500"
                 />
               </div>
@@ -254,7 +275,7 @@ function doGet(e) {
                   name="apiMode"
                   value="staging"
                   checked={apiMode === 'staging'}
-                  onChange={() => setApiMode('staging')}
+                  onChange={() => handleSelectApiMode('staging')}
                   className="w-4 h-4 text-blue-600 focus:ring-blue-500"
                 />
               </div>
@@ -337,7 +358,7 @@ function doGet(e) {
                 ) : (
                   <div className="space-y-1 text-[11.5px] text-rose-800 pt-1">
                     <p>• ข้อความผิดพลาด: <span className="font-mono">{healthStatus.error || 'Connection Refused'}</span></p>
-                    <p>• คำแนะนำ: ตรวจสอบว่าได้รันคำสั่ง <code className="bg-rose-100 px-1.5 py-0.5 rounded font-mono">npm run dev</code> ในโฟลเดอร์ <code className="bg-rose-100 px-1.5 py-0.5 rounded font-mono">backend-staging</code> แล้วหรือไม่</p>
+                    <p>• คำแนะนำ: ตรวจสอบว่าได้รันคำสั่ง <code className="bg-rose-100 px-1.5 py-0.5 rounded font-mono">npm run staging:server</code> ใน Terminal แล้วหรือไม่ หรือลองเปลี่ยนเป็น <code className="bg-rose-100 px-1.5 py-0.5 rounded font-mono">http://127.0.0.1:8787</code></p>
                   </div>
                 )}
               </div>

@@ -69,13 +69,23 @@ import {
 import {
   getRubberDashboardSummary
 } from './services/rubberDashboardService.js';
+import {
+  createDatabaseSnapshot,
+  uploadSnapshotToR2,
+  listBackupsFromR2,
+  getLatestBackupMetadata
+} from './services/backupService.js';
+import {
+  getDetailedSystemHealth
+} from './services/systemHealthService.js';
 
 export default {
   async fetch(request, env, ctx) {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, X-User-Email, X-User-Name, *',
+      'Access-Control-Max-Age': '86400',
     };
 
     if (request.method === 'OPTIONS') {
@@ -539,8 +549,8 @@ export default {
       // 8.2 POST /api/v1/rubber/purchases - สร้างใบชั่งซื้อใหม่ (PB-YYMMXXXX)
       if (path === '/api/v1/rubber/purchases' && request.method === 'POST') {
         return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
-          const createdByEmail = request.headers.get('X-User-Email') || 'system@srisuk-rubber.com';
-          const createdByName = request.headers.get('X-User-Name') || 'เจ้าหน้าที่ชั่ง';
+          const createdByEmail = request.headers.get('X-User-Email') || body.createdByEmail || 'system@srisuk-rubber.com';
+          const createdByName = decodeHeaderValue(request.headers.get('X-User-Name')) || body.createdByName || 'เจ้าหน้าที่ชั่ง';
           const newPurchase = await createPurchaseTicket(env.DB, body, { createdByEmail, createdByName });
           const ticketNo = newPurchase.ticket_no || newPurchase.purchase_no;
           newPurchase.ticket_no = ticketNo;
@@ -584,8 +594,8 @@ export default {
       // 9.1 POST /api/v1/rubber/lots - สร้าง Lot สินค้าใหม่ (LOT-YYMMXXXX)
       if (path === '/api/v1/rubber/lots' && request.method === 'POST') {
         return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
-          const createdByEmail = request.headers.get('X-User-Email') || 'system@srisuk-rubber.com';
-          const createdByName = request.headers.get('X-User-Name') || 'ผู้จัดการคลัง';
+          const createdByEmail = request.headers.get('X-User-Email') || body.createdByEmail || 'system@srisuk-rubber.com';
+          const createdByName = decodeHeaderValue(request.headers.get('X-User-Name')) || body.createdByName || 'ผู้จัดการคลัง';
           const newLot = await createLot(env.DB, body, { createdByEmail, createdByName });
           const lotNo = newLot.lot?.lot_no || newLot.lot_no;
           return successResponse(corsHeaders, newLot, `สร้าง Lot สินค้าเลขที่ ${lotNo} สำเร็จ`);
@@ -636,8 +646,8 @@ export default {
       // 10.1 POST /api/v1/rubber/sales - สร้างบิลส่งขายโรงงาน (SL-YYMMXXXX)
       if (path === '/api/v1/rubber/sales' && request.method === 'POST') {
         return await handleWithIdempotency(env.DB, request, corsHeaders, async (body) => {
-          const createdByEmail = request.headers.get('X-User-Email') || 'system@srisuk-rubber.com';
-          const createdByName = request.headers.get('X-User-Name') || 'เจ้าหน้าที่ฝ่ายขาย';
+          const createdByEmail = request.headers.get('X-User-Email') || body.createdByEmail || 'system@srisuk-rubber.com';
+          const createdByName = decodeHeaderValue(request.headers.get('X-User-Name')) || body.createdByName || 'เจ้าหน้าที่ฝ่ายขาย';
           const sale = await createSaleRecord(env.DB, body, { createdByEmail, createdByName });
           return successResponse(corsHeaders, sale, `สร้างบิลส่งขายเลขที่ ${sale.sale_no} สำเร็จ`);
         });
@@ -685,11 +695,63 @@ export default {
         return successResponse(corsHeaders, summary, 'ดึงข้อมูลสรุปภาพรวมระบบซื้อขาย Lot ยางพาราสำเร็จ');
       }
 
+      // 12. Phase 3: Automated Database Backup & System Health Monitoring Endpoints
+      // 12.1 GET /api/v1/system/health or /health/detailed - ตรวจสุขภาพระบบเชิงลึก
+      if ((path === '/api/v1/system/health' || path === '/health/detailed') && request.method === 'GET') {
+        const healthReport = await getDetailedSystemHealth(env);
+        const statusCode = healthReport.status === 'HEALTHY' ? 200 : 503;
+        return new Response(JSON.stringify(healthReport), {
+          status: statusCode,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // 12.2 POST /api/v1/backup/trigger - สั่งสำรองข้อมูลฉุกเฉิน / On-Demand ทันที
+      if (path === '/api/v1/backup/trigger' && request.method === 'POST') {
+        if (!env.DB) {
+          return errorResponse(corsHeaders, 'D1 Database binding is missing', 500);
+        }
+        if (!env.BACKUP_BUCKET) {
+          return errorResponse(corsHeaders, 'R2 Backup Bucket binding (BACKUP_BUCKET) is not configured', 500);
+        }
+        const actorEmail = request.headers.get('X-User-Email') || 'admin@srisuk-rubber.com';
+        const actorRole = 'Admin';
+        const snapshot = await createDatabaseSnapshot(env.DB, { environment: env.ENVIRONMENT || 'staging' });
+        const result = await uploadSnapshotToR2(env.BACKUP_BUCKET, snapshot, {
+          db: env.DB,
+          actorEmail,
+          actorRole
+        });
+        return successResponse(corsHeaders, result, `สำรองข้อมูลลง Cloudflare R2 สำเร็จ (${result.key})`);
+      }
+
+      // 12.3 GET /api/v1/backup/list - ดึงรายการไฟล์สำรองข้อมูลใน R2
+      if (path === '/api/v1/backup/list' && request.method === 'GET') {
+        if (!env.BACKUP_BUCKET) {
+          return errorResponse(corsHeaders, 'R2 Backup Bucket binding (BACKUP_BUCKET) is not configured', 500);
+        }
+        const limit = parseInt(url.searchParams.get('limit') || '50', 10);
+        const list = await listBackupsFromR2(env.BACKUP_BUCKET, { limit });
+        return successResponse(corsHeaders, list, `ดึงรายการไฟล์สำรองข้อมูลสำเร็จ (${list.length} รายการ)`);
+      }
+
+      // 12.4 GET /api/v1/backup/latest - ดึงข้อมูลสรุปการสำรองข้อมูลล่าสุด
+      if (path === '/api/v1/backup/latest' && request.method === 'GET') {
+        if (!env.BACKUP_BUCKET) {
+          return errorResponse(corsHeaders, 'R2 Backup Bucket binding (BACKUP_BUCKET) is not configured', 500);
+        }
+        const latest = await getLatestBackupMetadata(env.BACKUP_BUCKET);
+        if (!latest) {
+          return errorResponse(corsHeaders, 'ยังไม่มีประวัติการสำรองข้อมูลใน R2', 404);
+        }
+        return successResponse(corsHeaders, latest, 'ดึงข้อมูลสรุปการสำรองข้อมูลล่าสุดสำเร็จ');
+      }
+
       // Default 404 Route
       return new Response(JSON.stringify({
         status: 'error',
         message: `Endpoint ${path} not found`,
-        phase: 'Phase 1.2 - Google Sheets Background Sync Online'
+        phase: 'Phase 3 - Automated R2 Backup & Monitoring Online'
       }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -703,6 +765,28 @@ export default {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
+    }
+  },
+
+  /**
+   * Cloudflare Cron Trigger Handler (Phase 3 Daily Automated Backup)
+   */
+  async scheduled(event, env, ctx) {
+    console.log('⏰ Cloudflare Scheduled Event Triggered:', event?.cron, new Date().toISOString());
+    if (!env?.DB || !env?.BACKUP_BUCKET) {
+      console.warn('⚠️ Scheduled backup skipped: DB or BACKUP_BUCKET binding is missing');
+      return;
+    }
+    try {
+      const snapshot = await createDatabaseSnapshot(env.DB, { environment: env.ENVIRONMENT || 'production' });
+      const uploadResult = await uploadSnapshotToR2(env.BACKUP_BUCKET, snapshot, {
+        db: env.DB,
+        actorEmail: 'cron-trigger@srisuk-rubber.com',
+        actorRole: 'System'
+      });
+      console.log('✅ Automated daily backup completed successfully:', uploadResult.key);
+    } catch (err) {
+      console.error('❌ Automated daily backup failed:', err);
     }
   }
 };
@@ -743,4 +827,16 @@ function errorResponse(headers, message, status = 400) {
     status,
     headers: { ...headers, 'Content-Type': 'application/json' }
   });
+}
+
+/**
+ * Helper: Safely decode URI encoded header values (UTF-8 Thai text)
+ */
+function decodeHeaderValue(val, fallback = '') {
+  if (!val) return fallback;
+  try {
+    return decodeURIComponent(val);
+  } catch (e) {
+    return val;
+  }
 }

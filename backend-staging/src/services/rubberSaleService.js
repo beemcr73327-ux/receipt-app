@@ -123,6 +123,7 @@ export async function createSaleRecord(db, payload, options = {}) {
     : lot.total_weight_kg;
 
   const dateStr = shipDate || new Date().toISOString().split('T')[0];
+  const saleDateStr = payload.saleDate || payload.sale_date || dateStr;
 
   // 2. ออกรหัสบิลขาย (SL-YYMMXXXX)
   const seqInfo = await getNextDocumentNumber(db, 'rubber_sale', dateStr);
@@ -131,13 +132,13 @@ export async function createSaleRecord(db, payload, options = {}) {
   // 3. บันทึกลงตาราง rubber_sales
   const insertSaleSql = `
     INSERT INTO rubber_sales (
-      sale_no, lot_id, factory_name, ship_date, outbound_weight_kg,
+      sale_no, lot_id, ref_lot_no, factory_name, sale_date, ship_date, outbound_weight_kg,
       factory_weight_kg, factory_drc_percent, selling_price_per_kg, net_price_per_kg,
       gross_revenue, penalty_deduction, transport_cost, other_fees,
       net_revenue, net_profit, margin_per_kg, weight_shrinkage_kg,
       status, created_at, updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?, ?,
       0, 0, ?, 0,
       0, 0, 0, 0,
       0, 0, 0, 0,
@@ -150,7 +151,9 @@ export async function createSaleRecord(db, payload, options = {}) {
   const saleRecord = await db.prepare(insertSaleSql).bind(
     saleNo,
     lot.id,
+    lot.lot_no,
     cleanFactory,
+    saleDateStr,
     dateStr,
     outboundWeight,
     sellingPrice
@@ -176,7 +179,9 @@ export async function createSaleRecord(db, payload, options = {}) {
         details: {
           saleNo,
           lotNo: cleanLotNo,
+          refLotNo: lot.lot_no,
           factoryName: cleanFactory,
+          saleDate: saleDateStr,
           outboundWeightKg: outboundWeight,
           sellingPricePerKg: sellingPrice
         },
@@ -190,7 +195,9 @@ export async function createSaleRecord(db, payload, options = {}) {
   return saleRecord || {
     sale_no: saleNo,
     lot_id: lot.id,
+    ref_lot_no: lot.lot_no,
     factory_name: cleanFactory,
+    sale_date: saleDateStr,
     ship_date: dateStr,
     outbound_weight_kg: outboundWeight,
     selling_price_per_kg: sellingPrice,
@@ -356,12 +363,12 @@ export async function getSaleByNo(db, saleNo) {
  * @returns {Promise<object | null>}
  */
 export async function getSaleByLotNo(db, lotNo) {
-  const lotSql = `SELECT id FROM rubber_lots WHERE lot_no = ?`;
+  const lotSql = `SELECT id, lot_no FROM rubber_lots WHERE lot_no = ?`;
   const lot = await db.prepare(lotSql).bind(lotNo).first();
   if (!lot) return null;
 
-  const saleSql = `SELECT * FROM rubber_sales WHERE lot_id = ?`;
-  return await db.prepare(saleSql).bind(lot.id).first();
+  const saleSql = `SELECT * FROM rubber_sales WHERE lot_id = ? OR ref_lot_no = ?`;
+  return await db.prepare(saleSql).bind(lot.id, lotNo).first();
 }
 
 /**
@@ -385,29 +392,29 @@ export async function listSales(db, options = {}) {
   let params = [];
 
   if (status && String(status).trim()) {
-    conditions.push(`status = ?`);
+    conditions.push(`s.status = ?`);
     params.push(String(status).trim());
   }
 
   if (factoryName && String(factoryName).trim()) {
-    conditions.push(`factory_name = ?`);
+    conditions.push(`s.factory_name = ?`);
     params.push(String(factoryName).trim());
   }
 
   if (dateFrom) {
-    conditions.push(`ship_date >= ?`);
+    conditions.push(`COALESCE(s.sale_date, s.ship_date) >= ?`);
     params.push(dateFrom);
   }
 
   if (dateTo) {
-    conditions.push(`ship_date <= ?`);
+    conditions.push(`COALESCE(s.sale_date, s.ship_date) <= ?`);
     params.push(dateTo);
   }
 
   if (search && String(search).trim()) {
-    conditions.push(`(sale_no LIKE ? OR factory_name LIKE ?)`);
+    conditions.push(`(s.sale_no LIKE ? OR s.factory_name LIKE ? OR s.ref_lot_no LIKE ? OR l.lot_name LIKE ?)`);
     const term = `%${String(search).trim()}%`;
-    params.push(term, term);
+    params.push(term, term, term, term);
   }
 
   const whereClause = conditions.join(' AND ');
@@ -415,12 +422,13 @@ export async function listSales(db, options = {}) {
   const statQuery = `
     SELECT 
       COUNT(*) as total_count,
-      COALESCE(SUM(outbound_weight_kg), 0) as sum_outbound_weight,
-      COALESCE(SUM(factory_weight_kg), 0) as sum_factory_weight,
-      COALESCE(SUM(gross_revenue), 0) as sum_gross_revenue,
-      COALESCE(SUM(net_revenue), 0) as sum_net_revenue,
-      COALESCE(SUM(net_profit), 0) as sum_net_profit
-    FROM rubber_sales 
+      COALESCE(SUM(s.outbound_weight_kg), 0) as sum_outbound_weight,
+      COALESCE(SUM(s.factory_weight_kg), 0) as sum_factory_weight,
+      COALESCE(SUM(s.gross_revenue), 0) as sum_gross_revenue,
+      COALESCE(SUM(s.net_revenue), 0) as sum_net_revenue,
+      COALESCE(SUM(s.net_profit), 0) as sum_net_profit
+    FROM rubber_sales s
+    LEFT JOIN rubber_lots l ON s.lot_id = l.id
     WHERE ${whereClause}
   `;
   const stats = await db.prepare(statQuery).bind(...params).first();
@@ -429,9 +437,18 @@ export async function listSales(db, options = {}) {
   const offset = (Math.max(1, page) - 1) * pageSize;
 
   const listQuery = `
-    SELECT * FROM rubber_sales 
+    SELECT 
+      s.*, 
+      l.lot_no, 
+      l.lot_name, 
+      l.lot_date,
+      l.product_type, 
+      l.total_cost as lot_total_cost, 
+      l.avg_cost_per_kg as lot_avg_cost
+    FROM rubber_sales s
+    LEFT JOIN rubber_lots l ON s.lot_id = l.id
     WHERE ${whereClause}
-    ORDER BY ship_date DESC, id DESC
+    ORDER BY COALESCE(s.sale_date, s.ship_date) DESC, s.id DESC
     LIMIT ? OFFSET ?
   `;
   const listParams = [...params, pageSize, offset];

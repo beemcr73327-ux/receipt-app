@@ -164,7 +164,7 @@ async function runTests() {
           // 4. Insert into rubber_lots
           if (sql.includes('INSERT INTO rubber_lots')) {
             const [
-              lot_no, lot_name, product_type, total_weight_kg, total_cost,
+              lot_no, lot_name, lot_date, product_type, total_weight_kg, total_cost,
               avg_cost_per_kg, items_count
             ] = boundParams;
 
@@ -172,6 +172,7 @@ async function runTests() {
               id: lotIdInc++,
               lot_no,
               lot_name,
+              lot_date,
               product_type,
               total_weight_kg,
               total_cost,
@@ -217,12 +218,14 @@ async function runTests() {
 
           // 8. Insert into rubber_sales
           if (sql.includes('INSERT INTO rubber_sales')) {
-            const [sale_no, lot_id, factory_name, ship_date, outbound_weight_kg, selling_price_per_kg] = boundParams;
+            const [sale_no, lot_id, ref_lot_no, factory_name, sale_date, ship_date, outbound_weight_kg, selling_price_per_kg] = boundParams;
             const record = {
               id: saleIdInc++,
               sale_no,
               lot_id,
+              ref_lot_no,
               factory_name,
+              sale_date,
               ship_date,
               outbound_weight_kg,
               factory_weight_kg: 0,
@@ -418,6 +421,8 @@ async function runTests() {
 
   assertTrue(sale.sale_no.startsWith('SL-6909'), `Sale number should start with SL-6909... (Got: ${sale.sale_no})`);
   assertEqual(sale.sale_no, 'SL-69090001', 'First sale should be SL-69090001');
+  assertEqual(sale.ref_lot_no, lot.lot_no, 'Sale ref_lot_no must reference Lot lot_no');
+  assertTrue(sale.sale_date === '2026-09-15', 'Sale sale_date must be set');
   assertEqual(sale.status, 'PENDING', 'Initial sale status must be PENDING');
   assertEqual(lot.status, 'SHIPPED', 'Lot status must transition to SHIPPED');
 

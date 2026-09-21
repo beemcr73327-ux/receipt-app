@@ -94,6 +94,18 @@ function setLocalStore(key, data) {
   }
 }
 
+/**
+ * Safely encode HTTP header values to prevent ByteString TypeError with non-ASCII (Thai) text
+ */
+function safeHeaderValue(val) {
+  if (!val) return '';
+  try {
+    return encodeURIComponent(String(val).trim());
+  } catch (e) {
+    return '';
+  }
+}
+
 class RubberLotApiClient {
   getBaseUrl() {
     const settings = storageService.getSettings();
@@ -102,7 +114,8 @@ class RubberLotApiClient {
 
   isStagingActive() {
     const settings = storageService.getSettings();
-    return settings.apiMode === 'staging';
+    // เชื่อมต่อ Staging D1 Worker ทันทีเมื่อเปิดโหมด Staging หรือเปิดระบบ Lot ยางพารา
+    return settings.apiMode === 'staging' || settings.enableRubberLotTrading === true;
   }
 
   // 1. Dashboard Summary
@@ -159,16 +172,18 @@ class RubberLotApiClient {
         const params = new URLSearchParams();
         if (filters.branch) params.set('branch', filters.branch);
         if (filters.productType) params.set('productName', filters.productType);
-        const res = await fetch(`${this.getBaseUrl()}/api/v1/rubber/purchases/unassigned?${params.toString()}`);
+        const query = params.toString() ? `?${params.toString()}` : '';
+        const res = await fetch(`${this.getBaseUrl()}/api/v1/rubber/purchases/unassigned${query}`);
         if (res.ok) {
           const json = await res.json();
           return json.data;
         }
       } catch (err) {
-        console.warn('Staging error, fallback to local:', err.message);
+        console.warn('Staging getUnassignedPurchases error, fallback to local:', err.message);
       }
     }
 
+    // Fallback: Local Storage
     const purchases = getLocalStore(LOCAL_PURCHASES_KEY, INITIAL_PURCHASES);
     return purchases.filter(p => {
       if (p.lotId || p.lot_id) return false;
@@ -185,21 +200,28 @@ class RubberLotApiClient {
   async createPurchaseTicket(payload, user = null) {
     if (this.isStagingActive()) {
       try {
+        const enrichedPayload = {
+          ...payload,
+          createdByName: user?.fullName || 'เจ้าหน้าที่ชั่ง',
+          createdByEmail: user?.email || ''
+        };
         const res = await fetch(`${this.getBaseUrl()}/api/v1/rubber/purchases`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'X-User-Email': user?.email || '',
-            'X-User-Name': user?.fullName || 'เจ้าหน้าที่ชั่ง'
+            'Content-Type': 'application/json'
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify(enrichedPayload)
         });
         if (res.ok) {
           const json = await res.json();
           return json.data;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `Server error (HTTP ${res.status})`);
         }
       } catch (err) {
-        console.warn('Staging error, fallback to local:', err.message);
+        console.error('Staging backend error:', err);
+        throw new Error(`ไม่สามารถส่งข้อมูลเข้าฐานข้อมูล D1 ได้ (${err.message}). กรุณาตรวจสอบว่าเปิด terminal รันคำสั่ง npm run staging:server หรือยัง`);
       }
     }
 
@@ -250,14 +272,15 @@ class RubberLotApiClient {
         const lotRes = await fetch(`${this.getBaseUrl()}/api/v1/rubber/lots`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'X-User-Email': user?.email || '',
-            'X-User-Name': user?.fullName || ''
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             purchaseTicketNos: salePayload.ticketNos,
-            lotName: salePayload.lotName || `Lot ${salePayload.productType}`,
-            productType: salePayload.productType
+            lotName: salePayload.lotName,
+            lotDate: salePayload.lotDate || salePayload.shipDate || new Date().toISOString().split('T')[0],
+            productType: salePayload.productType,
+            createdByName: user?.fullName || 'ผู้จัดการคลัง',
+            createdByEmail: user?.email || ''
           })
         });
 
@@ -272,16 +295,18 @@ class RubberLotApiClient {
           const saleRes = await fetch(`${this.getBaseUrl()}/api/v1/rubber/sales`, {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              'X-User-Email': user?.email || '',
-              'X-User-Name': user?.fullName || ''
+              'Content-Type': 'application/json'
             },
             body: JSON.stringify({
               lotNo,
+              refLotNo: lotNo,
               destinationFactory: salePayload.factory,
-              shippingDate: salePayload.shipDate,
+              saleDate: salePayload.saleDate || salePayload.shipDate || new Date().toISOString().split('T')[0],
+              shippingDate: salePayload.shipDate || new Date().toISOString().split('T')[0],
               outboundWeightKg: salePayload.shipWeight,
-              notes: salePayload.notes
+              notes: salePayload.notes,
+              createdByName: user?.fullName || 'เจ้าหน้าที่ฝ่ายขาย',
+              createdByEmail: user?.email || ''
             })
           });
 
@@ -291,7 +316,8 @@ class RubberLotApiClient {
           }
         }
       } catch (err) {
-        console.warn('Staging error, fallback to local:', err.message);
+        console.error('Staging backend error:', err);
+        throw new Error(`ไม่สามารถสร้างบิลขายไปยังฐานข้อมูล D1 ได้ (${err.message})`);
       }
     }
 
@@ -305,14 +331,23 @@ class RubberLotApiClient {
     const totalW = selectedPurchases.reduce((s, p) => s + (p.weight || p.weight_kg || 0), 0);
     const totalC = selectedPurchases.reduce((s, p) => s + (p.total_amount || (p.weight * p.price) || 0), 0);
 
+    const sellersList = [...new Set(selectedPurchases.map(p => p.farmer || p.seller_name).filter(Boolean))].join(', ');
+    const fallbackLotNo = salePayload.refLotNo || `LOT-6909${String(sales.length + 1).padStart(4, '0')}`;
+    const dateStr = salePayload.saleDate || salePayload.shipDate || new Date().toISOString().split('T')[0];
+
     const newSale = {
       sale_no: billNo,
       billNo,
+      ref_lot_no: fallbackLotNo,
+      lot_no: fallbackLotNo,
+      lot_name: salePayload.lotName || sellersList || `Lot ${salePayload.productType}`,
+      lot_date: salePayload.lotDate || dateStr,
+      sale_date: dateStr,
       factory: salePayload.factory,
       factory_name: salePayload.factory,
       destination_factory: salePayload.factory,
-      shipDate: salePayload.shipDate || new Date().toISOString().split('T')[0],
-      shipping_date: salePayload.shipDate || new Date().toISOString().split('T')[0],
+      shipDate: salePayload.shipDate || dateStr,
+      shipping_date: salePayload.shipDate || dateStr,
       weight: totalW,
       outbound_weight_kg: salePayload.shipWeight || totalW,
       cost: totalC,
@@ -348,7 +383,8 @@ class RubberLotApiClient {
         const res = await fetch(`${this.getBaseUrl()}/api/v1/rubber/sales`);
         if (res.ok) {
           const json = await res.json();
-          return json.data.records || json.data;
+          const items = json.data?.items || json.data?.records || (Array.isArray(json.data) ? json.data : []);
+          return Array.isArray(items) ? items : [];
         }
       } catch (err) {
         console.warn('Staging error, fallback to local:', err.message);
@@ -365,18 +401,24 @@ class RubberLotApiClient {
         const res = await fetch(`${this.getBaseUrl()}/api/v1/rubber/sales/${encodeURIComponent(saleNo)}/settle`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'X-User-Email': user?.email || '',
-            'X-User-Name': user?.fullName || ''
+            'Content-Type': 'application/json'
           },
-          body: JSON.stringify(settlementData)
+          body: JSON.stringify({
+            ...settlementData,
+            settledByName: user?.fullName || '',
+            settledByEmail: user?.email || ''
+          })
         });
         if (res.ok) {
           const json = await res.json();
           return json.data;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `Server error (HTTP ${res.status})`);
         }
       } catch (err) {
-        console.warn('Staging error, fallback to local:', err.message);
+        console.error('Staging backend error:', err);
+        throw new Error(`ไม่สามารถบันทึกผลโรงงาน/ปิด Lot ไปยังฐานข้อมูล D1 ได้ (${err.message})`);
       }
     }
 

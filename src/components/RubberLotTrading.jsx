@@ -60,6 +60,9 @@ export default function RubberLotTrading({ currentUser }) {
   // 4. Sell State
   const [currentSellLines, setCurrentSellLines] = useState([]);
   const [sellBillNo, setSellBillNo] = useState('');
+  const [sellLotName, setSellLotName] = useState('');
+  const [sellLotDate, setSellLotDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [sellSaleDate, setSellSaleDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [sellFactory, setSellFactory] = useState('โรงงาน ก. (แม่สาย)');
   const [sellShipDate, setSellShipDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [sellShipWeight, setSellShipWeight] = useState('');
@@ -102,7 +105,7 @@ export default function RubberLotTrading({ currentUser }) {
         setUnassignedList(list);
       } else if (activeTab === 'factory') {
         const sales = await rubberLotApiClient.listSales();
-        setSalesList(sales);
+        setSalesList(Array.isArray(sales) ? sales : (sales?.items || []));
       }
     } catch (err) {
       console.warn('Load data error:', err.message);
@@ -141,6 +144,9 @@ export default function RubberLotTrading({ currentUser }) {
 
       const created = await rubberLotApiClient.createPurchaseTicket(payload, currentUser);
       setTodaysEntries(prev => [created, ...prev]);
+
+      const ticketNumber = created.ticket_no || created.ticketNo || created.id;
+      alert(`✓ บันทึกสำเร็จ: ออกเลขที่บิล [${ticketNumber}] ไหลเข้าสู่ Database เรียบร้อยแล้ว`);
 
       clearBuyForm();
       if (closeAfter) {
@@ -191,9 +197,15 @@ export default function RubberLotTrading({ currentUser }) {
       return;
     }
 
+    const uniqueSellers = [...new Set(selectedItems.map(p => p.farmer || p.seller_name).filter(Boolean))].join(', ');
+    const todayStr = new Date().toISOString().split('T')[0];
+
     setCurrentSellLines(selectedItems);
     setSellBillNo(`SL-2026-${String(Math.floor(100 + Math.random() * 900))}`);
     setSellShipWeight(selTotalWeight);
+    setSellLotName(uniqueSellers);
+    setSellLotDate(todayStr);
+    setSellSaleDate(todayStr);
     setActiveTab('sell');
   };
 
@@ -205,8 +217,12 @@ export default function RubberLotTrading({ currentUser }) {
   const handleConfirmSell = async () => {
     if (currentSellLines.length === 0) return;
     try {
+      const uniqueSellers = [...new Set(currentSellLines.map(p => p.farmer || p.seller_name).filter(Boolean))].join(', ');
       const payload = {
         billNo: sellBillNo,
+        lotName: (sellLotName && sellLotName.trim()) ? sellLotName.trim() : uniqueSellers,
+        lotDate: sellLotDate,
+        saleDate: sellSaleDate,
         factory: sellFactory,
         shipDate: sellShipDate,
         shipWeight: parseFloat(sellShipWeight) || sellTotalWeight,
@@ -867,7 +883,7 @@ export default function RubberLotTrading({ currentUser }) {
 
             {/* Sticky Selection Summary Bar */}
             {selectedIds.size > 0 && (
-              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#21301F] text-[#F1ECDE] px-6 py-3.5 rounded-2xl shadow-2xl flex flex-wrap items-center gap-6 z-40 border border-[#F1ECDE]/20 animate-in fade-in slide-in-from-bottom-3 duration-200">
+              <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#21301F] text-[#F1ECDE] px-6 py-3.5 rounded-2xl shadow-2xl flex flex-wrap items-center gap-5 z-40 border border-[#F1ECDE]/20 animate-in fade-in slide-in-from-bottom-3 duration-200 max-w-5xl w-[95%]">
                 <div className="text-xs">
                   เลือกแล้ว <span className="font-mono font-bold text-amber-400">{selectedIds.size}</span> รายการ
                 </div>
@@ -876,6 +892,9 @@ export default function RubberLotTrading({ currentUser }) {
                 </div>
                 <div className="text-xs">
                   ต้นทุนรวม <span className="font-mono font-bold text-amber-300">{fmtMoney(selTotalCost)}</span>
+                </div>
+                <div className="text-xs max-w-xs truncate text-[#F1ECDE]/80 hidden md:block">
+                  Lot Name: <span className="font-bold text-white">{[...new Set(selectedItems.map(p => p.farmer || p.seller_name).filter(Boolean))].join(', ') || '-'}</span>
                 </div>
 
                 <button
@@ -980,8 +999,45 @@ export default function RubberLotTrading({ currentUser }) {
 
                   <div className="bg-[#E7E0CB] border border-[#21301F]/20 rounded-xl p-5 shadow-sm space-y-4">
                     <h3 className="font-bold text-sm text-[#21301F] border-b border-[#21301F]/15 pb-2">
-                      ข้อมูลบิลส่งขายโรงงาน
+                      ข้อมูลบิลส่งขายโรงงาน & จัด Lot
                     </h3>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#425842] mb-1">
+                        ชื่อ Lot (ชื่อผู้ขายรวมกัน)
+                      </label>
+                      <input
+                        type="text"
+                        value={sellLotName}
+                        onChange={(e) => setSellLotName(e.target.value)}
+                        placeholder="เช่น ลุงสมชาย ใจดี, นายวินัย ปลูกยาง"
+                        className="w-full px-3 py-2 bg-white border border-[#21301F]/20 rounded-lg text-xs font-bold text-[#21301F]"
+                      />
+                      <span className="text-[10.5px] text-[#425842] mt-0.5 block">
+                        * ระบบรวมชื่อชาวสวนอัตโนมัติจากใบชั่งที่เลือก
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-[#425842] mb-1">วันที่จัด Lot</label>
+                        <input
+                          type="date"
+                          value={sellLotDate}
+                          onChange={(e) => setSellLotDate(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-[#21301F]/20 rounded-lg text-xs font-mono text-[#21301F]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-[#425842] mb-1">วันที่บิลขาย</label>
+                        <input
+                          type="date"
+                          value={sellSaleDate}
+                          onChange={(e) => setSellSaleDate(e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-[#21301F]/20 rounded-lg text-xs font-mono text-[#21301F]"
+                        />
+                      </div>
+                    </div>
 
                     <div>
                       <label className="block text-xs font-bold text-[#425842] mb-1">เลขที่บิลขาย</label>
@@ -1062,42 +1118,62 @@ export default function RubberLotTrading({ currentUser }) {
               </p>
             </div>
 
-            {salesList.length === 0 ? (
-              <div className="bg-[#E7E0CB] border border-[#21301F]/20 rounded-xl p-8 text-center text-xs text-[#425842] space-y-3">
-                <p>ยังไม่มี Lot ที่จัดส่งออก — สามารถสร้างบิลขายได้ที่แท็บ "สร้างบิลขาย"</p>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('sell')}
-                  className="px-4 py-2 bg-[#3C6E63] text-white rounded-lg font-bold text-xs cursor-pointer shadow"
-                >
-                  ไปหน้า "สร้างบิลขาย" →
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {salesList.map((lot, idx) => {
-                  const isClosed = lot.status === 'closed' || lot.status === 'CLOSED';
-                  const isFormOpen = openForms.has(idx);
-                  const netProfit = lot.net_profit !== undefined && lot.net_profit !== null
-                    ? lot.net_profit
-                    : (lot.revenue || 0) - (lot.cost || lot.lot_total_cost || 0);
-
-                  return (
-                    <div
-                      key={idx}
-                      className="bg-[#E7E0CB] border border-[#21301F]/20 rounded-xl p-5 shadow-sm space-y-4"
+            {(() => {
+              const safeSalesList = Array.isArray(salesList) ? salesList : (salesList?.items || []);
+              if (safeSalesList.length === 0) {
+                return (
+                  <div className="bg-[#E7E0CB] border border-[#21301F]/20 rounded-xl p-8 text-center text-xs text-[#425842] space-y-3">
+                    <p>ยังไม่มี Lot ที่จัดส่งออก — สามารถสร้างบิลขายได้ที่แท็บ "สร้างบิลขาย"</p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('sell')}
+                      className="px-4 py-2 bg-[#3C6E63] text-white rounded-lg font-bold text-xs cursor-pointer shadow"
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                          <div className="font-bold text-sm text-[#21301F] flex items-center gap-2">
-                            <span>{lot.sale_no || lot.billNo}</span>
-                            <span className="text-xs font-normal text-[#425842]">·</span>
-                            <span>{lot.destination_factory || lot.factory || lot.factory_name}</span>
+                      ไปหน้า "สร้างบิลขาย" →
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  {safeSalesList.map((lot, idx) => {
+                    const isClosed = lot.status === 'closed' || lot.status === 'CLOSED';
+                    const isFormOpen = openForms.has(idx);
+                    const netProfit = lot.net_profit !== undefined && lot.net_profit !== null
+                      ? lot.net_profit
+                      : (lot.revenue || 0) - (lot.cost || lot.lot_total_cost || 0);
+
+                    return (
+                      <div
+                        key={idx}
+                        className="bg-[#E7E0CB] border border-[#21301F]/20 rounded-xl p-5 shadow-sm space-y-4"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <div className="font-bold text-sm text-[#21301F] flex flex-wrap items-center gap-2">
+                              <span>{lot.sale_no || lot.billNo}</span>
+                              {(lot.ref_lot_no || lot.lot_no) && (
+                                <span className="px-2 py-0.5 rounded-md bg-[#3C6E63]/15 text-[#3C6E63] font-mono text-xs font-bold border border-[#3C6E63]/30">
+                                  อ้างอิง: {lot.ref_lot_no || lot.lot_no}
+                                </span>
+                              )}
+                              <span className="text-xs font-normal text-[#425842]">·</span>
+                              <span>{lot.destination_factory || lot.factory || lot.factory_name}</span>
+                            </div>
+                            <div className="text-xs text-[#425842] mt-1 space-y-0.5">
+                              {lot.lot_name && (
+                                <div>
+                                  <span className="font-bold text-[#21301F]">Lot:</span> {lot.lot_name}
+                                  {lot.lot_date && <span className="ml-2 font-mono text-[11px] text-[#425842]">(วันที่จัด Lot: {lot.lot_date})</span>}
+                                </div>
+                              )}
+                              <div className="text-[11px]">
+                                {lot.sale_date && <span>วันที่ขาย {lot.sale_date} · </span>}
+                                ส่งวันที่ {lot.shipping_date || lot.shipDate || lot.ship_date} · น้ำหนักส่ง {fmt(lot.outbound_weight_kg || lot.weight)} กก. · ต้นทุน {fmtMoney(lot.lot_total_cost || lot.cost)}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-xs text-[#425842] mt-0.5">
-                            ส่งวันที่ {lot.shipping_date || lot.shipDate} · น้ำหนักส่ง {fmt(lot.outbound_weight_kg || lot.weight)} กก. · ต้นทุน {fmtMoney(lot.lot_total_cost || lot.cost)}
-                          </div>
-                        </div>
 
                         <div className="flex items-center gap-3">
                           <span
@@ -1207,7 +1283,7 @@ export default function RubberLotTrading({ currentUser }) {
                           <div className="flex justify-between py-1 border-b border-[#21301F]/10">
                             <span className="text-[#425842]">น้ำหนักจริงโรงงาน & ค่าแล็บ</span>
                             <span className="font-mono font-bold text-[#21301F]">
-                              {fmt(lot.actual_weight_kg || lot.actualWeight)} กก. (DRC {lot.factory_drc_percent || lot.drc}%)
+                              {fmt(lot.factory_weight_kg || lot.actual_weight_kg || lot.actualWeight)} กก. (DRC {lot.factory_drc_percent || lot.drc}%)
                             </span>
                           </div>
 
@@ -1234,7 +1310,8 @@ export default function RubberLotTrading({ currentUser }) {
                   );
                 })}
               </div>
-            )}
+            );
+          })()}
           </div>
         )}
 

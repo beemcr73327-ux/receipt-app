@@ -162,33 +162,59 @@
   $$\text{Weight Shrinkage} = \text{round}(\text{Outbound Weight} - \text{Factory Weight}, 2)$$
 - **การทดสอบ:** ผ่านการทดสอบ Unit Test 37/37 ข้อ (`verifyRubberSales.js`)
 
-### 6.4 Phase 2.4: Real-time P&L Analytics & React UI Integration (⏳ เป้าหมายถัดไป)
-- แปลงต้นแบบ `lot-trading-ui.html` เป็น React Component 5 แท็บ:
-  1. **Dashboard:** สรุปภาพรวมสต็อก, ทุนสะสม, กำไรสุทธิประจำเดือน
-  2. **Buy (ชั่งซื้อหน้าลาน):** ฟอร์มออกตั๋วชั่งซื้อ `PB-` พร้อมคำนวณ DRC อัตโนมัติ
-  3. **Lot Mix (รายการซื้อ & จัด Lot):** ตารางบิลซื้อหน้าลาน เลือกรวมเข้า Lot `LOT-`
-  4. **Sell (ส่งขายโรงงาน):** เลือก Lot ที่ปิดผนึก ออกบิลส่งมอบ `SL-`
-  5. **Factory & P&L (รอผลโรงงาน & ปิดยอด):** บันทึกผลแล็บโรงงาน คำนวณกำไรสุทธิแบบ Real-time
-- เชื่อมเข้าสู่ Sidebar ภายใต้ Feature Flag ในหน้า Settings (Default: ปิด) ตามนโยบาย Zero-Impact 100%
+### 6.4 Phase 2.4: Real-time P&L Analytics & React UI Integration (✅ เสร็จสมบูรณ์ 100%)
+- **ไฟล์:** [`RubberLotTrading.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/RubberLotTrading.jsx), [`rubberLotApiClient.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/rubberLotApiClient.js), [`rubberDashboardService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/rubberDashboardService.js)
+- แปลงต้นแบบ `lot-trading-ui.html` เป็น React Component 5 แท็บอย่างสมบูรณ์:
+  1. **01 Dashboard (ภาพรวม):** สรุปภาพรวมสต็อก, ทุนสะสม, กำไรสุทธิประจำเดือน
+  2. **02 Buy (บันทึกซื้อ):** ฟอร์มออกตั๋วชั่งซื้อ `PB-` พร้อมคำนวณ DRC อัตโนมัติและปุ่มบันทึกต่อเนื่อง
+  3. **03 Records / Lot Mix (รายการซื้อ & จัด Lot):** ตารางบิลซื้อหน้าลาน เลือกรวมเข้า Lot `LOT-` พร้อมกฎ Single Product Rule
+  4. **04 Sell (สร้างบิลขาย):** เลือก Lot ที่ปิดผนึก ออกบิลส่งมอบ `SL-` พร้อมเฉลี่ยต้นทุนถ่วงน้ำหนัก
+  5. **05 Factory & P&L (รอผลโรงงาน):** บันทึกผลแล็บโรงงาน คำนวณกำไรสุทธิแบบ Real-time
+- **Feature Flag Protection:** ควบคุมการแสดงผลเมนูผ่าน `SettingsModal.jsx` (Default: ปิด) ตามนโยบาย Zero-Impact 100%
+- **การทดสอบ:** ผ่านการทดสอบ Unit Test 40/40 ข้อ (`verifyRubberHttpRoutes.js`)
+
+### 6.5 Phase 2.4.1 - 2.4.4: Local Staging Environment & Real-time Live Watcher (✅ เสร็จสมบูรณ์ 100%)
+- **[`localServer.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/localServer.js) (`npm run staging:server`):**
+  - เซิร์ฟเวอร์จำลอง Cloudflare Worker + D1 SQLite ในเครื่องแบบ Zero-Dependency (Node 24 `DatabaseSync`)
+  - รองรับ Dual-Stack Socket (`0.0.0.0` IPv4 และ `::1` IPv6) ขจัดปัญหาการเชื่อมต่อบน macOS
+  - Normalized CORS Header ป้องกันปัญหา Chrome ปฏิเสธ Header ซ้ำซ้อน
+- **[`vite.config.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/vite.config.js):** Dev Server Reverse Proxy สำหรับ `/health` และ `/api`
+- **[`watchD1.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/watchD1.js) (`npm run d1:watch`):**
+  - หน้าปัดเฝ้าดูฐานข้อมูลสด Real-Time Live Monitor ตรวจจับข้อมูลทุก 0.5 วินาที พร้อมเสียงเตือนเมื่อมีข้อมูลใหม่ไหลเข้า
+
+### 6.6 Phase 3: Automated Cloudflare R2 Database Backup & System Health Monitoring (✅ เสร็จสมบูรณ์ 100%)
+- **ไฟล์:** [`backupService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/backupService.js), [`systemHealthService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/systemHealthService.js), [`wrangler.toml`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/wrangler.toml)
+- **ระบบสำรองข้อมูลอัตโนมัติ (Automated R2 Backup Engine):**
+  - ดึงข้อมูลครบทั้ง 7 ตารางหลัก (`receipts`, `vouchers`, `rubber_purchases`, `rubber_lots`, `rubber_sales`, `document_sequences`, `audit_logs`)
+  - คำนวณ SHA-256 Cryptographic Checksum รับประกันความสมบูรณ์ของข้อมูล 100%
+  - ตั้งเวลาสำรองข้อมูลอัตโนมัติผ่าน Cloudflare Cron Triggers (`0 18 * * *` หรือ 01:00 น. ตามเวลาไทย)
+  - จัดเก็บไฟล์ลงใน Cloudflare R2 Bucket: `backups/YYYY-MM/backup-YYYY-MM-DD-HHmmss-xxxxx.json` พร้อมอัปเดต pointer `backups/latest.json`
+  - รองรับ Local R2 Provider ในเครื่องผ่าน `backend-staging/backups/` ทำงานได้สมบูรณ์แบบโดยไม่ต้องต่อเน็ต
+- **ระบบตรวจสุขภาพระบบเชิงลึก (System Health & Observability):**
+  - `GET /api/v1/system/health`: วัด Response Time (ms) ของ D1, ตรวจสอบสถานะ R2, Google Sheets Webhook, และสรุปจำนวนเรคคอร์ดทั้งหมดในระบบ
+- **การทดสอบ:** ผ่านการทดสอบ Unit Test 44/44 ข้อ (`verifyBackupService.js` และ `verifySystemHealth.js`)
 
 ---
 
 ## 7. 🧪 ตารางสรุปผลการทดสอบระบบทั้งหมด (Test Suite Matrix)
 
 ```text
-🧪 1. Sequence Engine (Phase 0.2):         13 Passed, 0 Failed
-🧪 2. Idempotency Guard (Phase 0.3):       15 Passed, 0 Failed
-🧪 3. Immutable Audit Log (Phase 0.4):     20 Passed, 0 Failed
-🧪 4. Auth & RBAC System (Phase 0.5):      23 Passed, 0 Failed
-🧪 5. Document CRUD Engine (Phase 1.1):    20 Passed, 0 Failed
-🧪 6. Google Sheets Sync (Phase 1.2):      16 Passed, 0 Failed
-🧪 7. Staging Client & Toggle (Phase 1.3):  8 Passed, 0 Failed
-🧪 8. Rubber Purchase Engine (Phase 2.1):  30 Passed, 0 Failed
-🧪 9. Rubber Lot Engine (Phase 2.2):       32 Passed, 0 Failed
-🧪 10. Rubber Sales Engine (Phase 2.3):    37 Passed, 0 Failed
+🧪 1. Sequence Engine (Phase 0.2):           13 Passed, 0 Failed
+🧪 2. Idempotency Guard (Phase 0.3):         15 Passed, 0 Failed
+🧪 3. Immutable Audit Log (Phase 0.4):       20 Passed, 0 Failed
+🧪 4. Auth & RBAC System (Phase 0.5):        23 Passed, 0 Failed
+🧪 5. Document CRUD Engine (Phase 1.1):      20 Passed, 0 Failed
+🧪 6. Google Sheets Sync (Phase 1.2):        16 Passed, 0 Failed
+🧪 7. Staging Client & Toggle (Phase 1.3):    8 Passed, 0 Failed
+🧪 8. Rubber Purchase Engine (Phase 2.1):    30 Passed, 0 Failed
+🧪 9. Rubber Lot Engine (Phase 2.2):         32 Passed, 0 Failed
+🧪 10. Rubber Sales Engine (Phase 2.3):      39 Passed, 0 Failed
+🧪 11. Rubber HTTP Routes & UI (Phase 2.4):  40 Passed, 0 Failed
+🧪 12. Backup Service & R2 (Phase 3):        23 Passed, 0 Failed
+🧪 13. System Health & Cron (Phase 3):       21 Passed, 0 Failed
 
-🏆 รวมผลการทดสอบทั้งหมดของระบบ: 214 Passed, 0 Failed (100% Pass Rate)
-🚀 Frontend Production Build:       ✓ 1,607 modules transformed (Built in 1.68s)
+🏆 รวมผลการทดสอบทั้งหมดของระบบ: 300 Passed, 0 Failed (100% Pass Rate)
+🚀 Frontend Production Build:       ✓ 1,609 modules transformed (Built in 1.64s)
 ```
 
 ---

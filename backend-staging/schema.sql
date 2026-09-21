@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS rubber_lots (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     lot_no TEXT NOT NULL UNIQUE,
     lot_name TEXT NOT NULL,
+    lot_date TEXT NOT NULL DEFAULT (DATE('now', '+7 hours')),
     product_type TEXT NOT NULL,
     total_weight_kg REAL NOT NULL DEFAULT 0,
     total_cost REAL NOT NULL DEFAULT 0,
@@ -174,6 +175,7 @@ CREATE TABLE IF NOT EXISTS rubber_lots (
 );
 
 CREATE INDEX IF NOT EXISTS idx_rubber_lots_lot_no ON rubber_lots(lot_no);
+CREATE INDEX IF NOT EXISTS idx_rubber_lots_date ON rubber_lots(lot_date);
 CREATE INDEX IF NOT EXISTS idx_rubber_lots_status ON rubber_lots(status);
 
 -- 11. Inbound Purchase Tickets (PB-YYMMXXXX)
@@ -207,7 +209,9 @@ CREATE TABLE IF NOT EXISTS rubber_sales (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     sale_no TEXT NOT NULL UNIQUE,
     lot_id INTEGER NOT NULL UNIQUE REFERENCES rubber_lots(id),
+    ref_lot_no TEXT NOT NULL REFERENCES rubber_lots(lot_no),
     factory_name TEXT NOT NULL,
+    sale_date TEXT NOT NULL DEFAULT (DATE('now', '+7 hours')),
     ship_date TEXT NOT NULL,
     outbound_weight_kg REAL DEFAULT 0,
     factory_weight_kg REAL NOT NULL DEFAULT 0,
@@ -229,4 +233,6 @@ CREATE TABLE IF NOT EXISTS rubber_sales (
 
 CREATE INDEX IF NOT EXISTS idx_rubber_sales_sale_no ON rubber_sales(sale_no);
 CREATE INDEX IF NOT EXISTS idx_rubber_sales_lot_id ON rubber_sales(lot_id);
+CREATE INDEX IF NOT EXISTS idx_rubber_sales_ref_lot_no ON rubber_sales(ref_lot_no);
+CREATE INDEX IF NOT EXISTS idx_rubber_sales_date ON rubber_sales(sale_date);
 CREATE INDEX IF NOT EXISTS idx_rubber_sales_status ON rubber_sales(status);

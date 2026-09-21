@@ -106,13 +106,14 @@ async function runTests() {
           // Insert into rubber_lots (uses RETURNING * with .first())
           if (sql.includes('INSERT INTO rubber_lots')) {
             const [
-              lot_no, lot_name, product_type, total_weight_kg, total_cost,
+              lot_no, lot_name, lot_date, product_type, total_weight_kg, total_cost,
               avg_cost_per_kg, items_count
             ] = boundParams;
             const record = {
               id: lotIdInc++,
               lot_no,
               lot_name,
+              lot_date,
               product_type,
               product_name: product_type,
               total_weight_kg,
@@ -131,15 +132,17 @@ async function runTests() {
           // Insert into rubber_sales (uses RETURNING * with .first())
           if (sql.includes('INSERT INTO rubber_sales')) {
             const [
-              sale_no, lot_id, factory_name, ship_date, outbound_weight_kg,
+              sale_no, lot_id, ref_lot_no, factory_name, sale_date, ship_date, outbound_weight_kg,
               selling_price_per_kg
             ] = boundParams;
             const record = {
               id: saleIdInc++,
               sale_no,
               lot_id,
+              ref_lot_no,
               destination_factory: factory_name,
               factory_name,
+              sale_date,
               shipping_date: ship_date,
               ship_date,
               outbound_weight_kg,
@@ -644,7 +647,7 @@ async function runTests() {
   // ==========================================
   console.log('\n--- Section 5: Test Dashboard Analytics Metrics After Cycle ---');
   {
-    const req = new Request('http://localhost/api/v1/rubber/dashboard', { method: 'GET' });
+    const req = new Request('http://localhost/api/v1/rubber/dashboard?date=2026-09-15', { method: 'GET' });
     const res = await worker.fetch(req, mockEnv, mockCtx);
     const json = await res.json();
     assertEqual(json.data.todayWeight, 2500, 'Today purchased weight updated to 2,500 kg');

@@ -94,9 +94,15 @@ export async function createLot(db, payload, options = {}) {
     fetchedTickets.push(ticket);
   }
 
-  // 2. คำนวณผลรวมของ Lot
+  // 2. คำนวณผลรวมของ Lot และรวมชื่อผู้ขายทั้งหมด (lot_name)
   const aggregates = calculateLotAggregates(fetchedTickets);
-  const dateStr = lotDate || new Date().toISOString().split('T')[0];
+  const dateStr = lotDate || payload.lotDate || payload.date || new Date().toISOString().split('T')[0];
+
+  const uniqueSellers = [...new Set(fetchedTickets.map(t => t.seller_name).filter(Boolean))];
+  const autoLotName = uniqueSellers.join(', ') || `Lot ${cleanProductType}`;
+  const finalLotName = (payload.lotName && String(payload.lotName).trim() && !String(payload.lotName).startsWith('Lot '))
+    ? String(payload.lotName).trim()
+    : autoLotName;
 
   // 3. ออกรหัส Lot เลขที่ถัดไป (LOT-YYMMXXXX)
   const seqInfo = await getNextDocumentNumber(db, 'rubber_lot', dateStr);
@@ -105,15 +111,16 @@ export async function createLot(db, payload, options = {}) {
   // 4. บันทึกหัวตาราง rubber_lots
   const insertLotSql = `
     INSERT INTO rubber_lots (
-      lot_no, lot_name, product_type, total_weight_kg, total_cost,
+      lot_no, lot_name, lot_date, product_type, total_weight_kg, total_cost,
       avg_cost_per_kg, items_count, status, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'OPEN', DATETIME('now', '+7 hours'), DATETIME('now', '+7 hours'))
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'OPEN', DATETIME('now', '+7 hours'), DATETIME('now', '+7 hours'))
     RETURNING *;
   `;
 
   const lotRecord = await db.prepare(insertLotSql).bind(
     lotNo,
-    cleanLotName,
+    finalLotName,
+    dateStr,
     cleanProductType,
     aggregates.totalWeightKg,
     aggregates.totalCost,

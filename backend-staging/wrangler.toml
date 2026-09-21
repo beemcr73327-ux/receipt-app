@@ -13,7 +13,11 @@ binding = "DB"
 database_name = "receipt_db_staging"
 database_id = "e989db7a-7221-404f-b459-39ff1281be53"
 
-# Cloudflare R2 Bucket Binding (สำหรับเตรียมพร้อม Phase 3 Backup)
-# [[r2_buckets]]
-# binding = "BACKUP_BUCKET"
-# bucket_name = "receipt-backup-staging"
+# Cloudflare R2 Bucket Binding (Phase 3 Automated Backup)
+[[r2_buckets]]
+binding = "BACKUP_BUCKET"
+bucket_name = "receipt-backup-staging"
+
+# Cloudflare Cron Triggers (Daily backup at 01:00 AM Bangkok / 18:00 UTC)
+[triggers]
+crons = ["0 18 * * *"]

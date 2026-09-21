@@ -132,7 +132,7 @@ async function runTests() {
           // 4. Insert into rubber_lots
           if (sql.includes('INSERT INTO rubber_lots')) {
             const [
-              lot_no, lot_name, product_type, total_weight_kg, total_cost,
+              lot_no, lot_name, lot_date, product_type, total_weight_kg, total_cost,
               avg_cost_per_kg, items_count
             ] = boundParams;
 
@@ -140,6 +140,7 @@ async function runTests() {
               id: lotIdInc++,
               lot_no,
               lot_name,
+              lot_date,
               product_type,
               total_weight_kg,
               total_cost,
