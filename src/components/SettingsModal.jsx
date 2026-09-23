@@ -385,7 +385,7 @@ function doGet(e) {
                   type="url"
                   value={stagingApiUrl}
                   onChange={(e) => setStagingApiUrl(e.target.value)}
-                  placeholder="http://localhost:8787"
+                  placeholder={DEFAULT_STAGING_API_URL}
                   className="flex-1 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                 />
                 <button
@@ -396,6 +396,33 @@ function doGet(e) {
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
                   <span>{isTesting ? 'กำลังทดสอบ...' : 'ทดสอบเชื่อมต่อ (Test Connection)'}</span>
+                </button>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 text-[11px]">
+                <span className="text-slate-400 font-medium">สลับเซิร์ฟเวอร์ด่วน:</span>
+                <button
+                  type="button"
+                  onClick={() => setStagingApiUrl(DEFAULT_STAGING_API_URL)}
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                    stagingApiUrl === DEFAULT_STAGING_API_URL
+                      ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold shadow-2xs'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>☁️ Cloudflare D1 (Cloud แนะนำ)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStagingApiUrl('http://127.0.0.1:8787')}
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition cursor-pointer flex items-center gap-1.5 ${
+                    stagingApiUrl.includes('8787')
+                      ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold shadow-2xs'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>💻 Local SQLite Server (8787)</span>
                 </button>
               </div>
             </div>
