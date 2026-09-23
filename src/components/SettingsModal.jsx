@@ -13,7 +13,9 @@ import {
   ExternalLink,
   Database,
   Layers,
-  ShieldCheck
+  ShieldCheck,
+  UploadCloud,
+  Hash
 } from 'lucide-react';
 import {
   storageService,
@@ -37,6 +39,77 @@ export default function SettingsModal() {
   // Health check state
   const [isTesting, setIsTesting] = useState(false);
   const [healthStatus, setHealthStatus] = useState(null);
+
+  // Migration & Sequence states
+  const [localStats, setLocalStats] = useState(() => storageService.getLocalStats());
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState(null);
+
+  const [previewSeq, setPreviewSeq] = useState({ receipt: '', voucher: '' });
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [seedReceiptInput, setSeedReceiptInput] = useState('');
+  const [seedVoucherInput, setSeedVoucherInput] = useState('');
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [seedStatusMessage, setSeedStatusMessage] = useState(null);
+
+  const handleFetchPreviews = async () => {
+    setIsLoadingPreview(true);
+    try {
+      const pR = await storageService.previewSequence('receipt', stagingApiUrl);
+      const pV = await storageService.previewSequence('voucher', stagingApiUrl);
+      setPreviewSeq({
+        receipt: pR.nextFormattedNumber,
+        voucher: pV.nextFormattedNumber
+      });
+    } catch (e) {
+      console.warn('Failed to preview sequences:', e.message);
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
+  const handleRunMigration = async () => {
+    setIsMigrating(true);
+    setMigrationResult(null);
+    try {
+      const result = await storageService.migrateLocalStorageToD1(stagingApiUrl);
+      setMigrationResult({ success: true, data: result });
+      setLocalStats(storageService.getLocalStats());
+      handleFetchPreviews();
+    } catch (err) {
+      setMigrationResult({ success: false, error: err.message });
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
+  const handleApplySequenceSeed = async () => {
+    setIsSeeding(true);
+    setSeedStatusMessage(null);
+    try {
+      const messages = [];
+      if (seedReceiptInput && !isNaN(parseInt(seedReceiptInput, 10))) {
+        const resR = await storageService.seedSequence('receipt', null, parseInt(seedReceiptInput, 10), stagingApiUrl);
+        messages.push(`ใบเสร็จ: เริ่มต้นที่ ${resR.manualSeed} (ใบถัดไป: ${resR.nextFormattedNumber})`);
+      }
+      if (seedVoucherInput && !isNaN(parseInt(seedVoucherInput, 10))) {
+        const resV = await storageService.seedSequence('voucher', null, parseInt(seedVoucherInput, 10), stagingApiUrl);
+        messages.push(`ใบสำคัญจ่าย: เริ่มต้นที่ ${resV.manualSeed} (ใบถัดไป: ${resV.nextFormattedNumber})`);
+      }
+      if (messages.length === 0) {
+        setSeedStatusMessage({ type: 'warning', text: 'กรุณาระบุตัวเลขเริ่มต้นที่ต้องการตั้งค่า' });
+      } else {
+        setSeedStatusMessage({ type: 'success', text: messages.join(' | ') });
+        handleFetchPreviews();
+        setSeedReceiptInput('');
+        setSeedVoucherInput('');
+      }
+    } catch (err) {
+      setSeedStatusMessage({ type: 'error', text: err.message });
+    } finally {
+      setIsSeeding(false);
+    }
+  };
 
   const handleTestStagingConnection = async () => {
     setIsTesting(true);
@@ -365,6 +438,180 @@ function doGet(e) {
             )}
           </div>
         </div>
+
+        {/* 2.1 DATA MIGRATION & SEQUENCE CONTROL (เมื่อใช้งานโหมด Staging D1) */}
+        {apiMode === 'staging' && (
+          <div className="bg-white border border-blue-200 rounded-2xl p-5 shadow-2xs space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2">
+                <UploadCloud className="w-4 h-4 text-blue-600" />
+                <h3 className="text-xs font-bold text-slate-800">
+                  เครื่องมือนำเข้าข้อมูลประวัติ & จัดการลำดับเลขที่เอกสาร (D1 Database)
+                </h3>
+              </div>
+              <span className="px-2 py-0.5 text-[10.5px] font-bold rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                Single Source of Truth
+              </span>
+            </div>
+
+            {/* A. ข้อมูลในเครื่อง & ปุ่มนำเข้า */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800">1. นำเข้าข้อมูลจากเครื่องนี้เข้าสู่ Cloudflare D1 Database</h4>
+                  <p className="text-[11.5px] text-slate-500 mt-0.5">
+                    นำเข้าประวัติใบเสร็จและใบสำคัญจ่ายที่เคยบันทึกไว้ในเบราว์เซอร์นี้เข้าสู่ฐานข้อมูล D1 (ระบบจะข้ามรายการที่มีอยู่แล้วอัตโนมัติ ไม่สร้างบิลซ้ำ)
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                <div className="bg-white p-2.5 rounded-lg border border-slate-200 text-center">
+                  <div className="text-[10px] text-slate-400 font-semibold">ใบเสร็จในเครื่อง</div>
+                  <div className="text-base font-extrabold text-emerald-700">{localStats.receiptCount} <span className="text-xs font-normal">ใบ</span></div>
+                  <div className="text-[9.5px] text-slate-400 font-mono truncate">ล่าสุด: {localStats.latestReceiptNo}</div>
+                </div>
+                <div className="bg-white p-2.5 rounded-lg border border-slate-200 text-center">
+                  <div className="text-[10px] text-slate-400 font-semibold">ใบสำคัญจ่ายในเครื่อง</div>
+                  <div className="text-base font-extrabold text-rose-700">{localStats.voucherCount} <span className="text-xs font-normal">ใบ</span></div>
+                  <div className="text-[9.5px] text-slate-400 font-mono truncate">ล่าสุด: {localStats.latestVoucherNo}</div>
+                </div>
+                <div className="col-span-2 flex items-center">
+                  <button
+                    type="button"
+                    onClick={handleRunMigration}
+                    disabled={isMigrating || (localStats.receiptCount === 0 && localStats.voucherCount === 0)}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    <UploadCloud className={`w-4 h-4 ${isMigrating ? 'animate-bounce' : ''}`} />
+                    <span>{isMigrating ? 'กำลังนำเข้าข้อมูล...' : '🚀 นำเข้าข้อมูลประวัติเข้าสู่ Database'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {migrationResult && (
+                <div className={`p-3 rounded-lg border text-xs ${
+                  migrationResult.success 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                    : 'bg-rose-50 border-rose-200 text-rose-900'
+                }`}>
+                  {migrationResult.success ? (
+                    <div className="flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold">{migrationResult.data?.message || 'นำเข้าข้อมูลสำเร็จ'}</div>
+                        <div className="text-[11px] text-emerald-700 mt-0.5">
+                          ระบบได้ปรับลำดับเลขที่เอกสารล่าสุดให้อัตโนมัติ เพื่อให้ออกบิลใบถัดไปได้ต่อเนื่องทันที
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold">เกิดข้อผิดพลาดในการนำเข้า</div>
+                        <div className="text-[11px] text-rose-700 mt-0.5">{migrationResult.error}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* B. ตัวอย่างและตั้งค่าลำดับเลขที่เอกสาร */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-800">2. ตั้งค่าและตรวจสอบลำดับเลขที่เอกสาร (Sequence Seed)</h4>
+                  <p className="text-[11.5px] text-slate-500 mt-0.5">
+                    กำหนดเลขที่เริ่มต้นของเดือนปัจจุบัน (YYMM) เพื่อให้ระบบรันเลขบิลต่อจากเล่มเอกสารกระดาษ
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleFetchPreviews}
+                  disabled={isLoadingPreview}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isLoadingPreview ? 'animate-spin' : ''}`} />
+                  <span>ตรวจสอบเลขถัดไป</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                {/* ใบเสร็จรับเงิน */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
+                      <Hash className="w-3.5 h-3.5 text-emerald-600" />
+                      ใบเสร็จรับเงิน (Receipt)
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      ถัดไป: <strong>{previewSeq.receipt || 'รอตรวจสอบ'}</strong>
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="เช่น 43 (เพื่อเริ่มที่ 69090043)"
+                      value={seedReceiptInput}
+                      onChange={(e) => setSeedReceiptInput(e.target.value)}
+                      className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                {/* ใบสำคัญจ่าย */}
+                <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-rose-800 flex items-center gap-1.5">
+                      <Hash className="w-3.5 h-3.5 text-rose-600" />
+                      ใบสำคัญจ่าย (Voucher)
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      ถัดไป: <strong>{previewSeq.voucher || 'รอตรวจสอบ'}</strong>
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="เช่น 15 (เพื่อเริ่มที่ 69090015)"
+                      value={seedVoucherInput}
+                      onChange={(e) => setSeedVoucherInput(e.target.value)}
+                      className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] text-slate-400">
+                  * ระบบจะไม่ยอมให้ตั้งค่าย้อนกลับไปต่ำกว่าเลขที่เคยออกไปแล้วเพื่อความถูกต้องของบัญชี
+                </span>
+                <button
+                  type="button"
+                  onClick={handleApplySequenceSeed}
+                  disabled={isSeeding || (!seedReceiptInput && !seedVoucherInput)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition cursor-pointer disabled:opacity-40"
+                >
+                  {isSeeding ? 'กำลังบันทึก...' : 'บันทึกเลขเริ่มต้น'}
+                </button>
+              </div>
+
+              {seedStatusMessage && (
+                <div className={`p-3 rounded-lg border text-xs ${
+                  seedStatusMessage.type === 'success'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : 'bg-amber-50 border-amber-200 text-amber-900'
+                }`}>
+                  {seedStatusMessage.text}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 2.5 FEATURE FLAGS (โมดูลเสริม & ระบบซื้อขาย Lot ยางพารา Phase 2) */}
         <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">

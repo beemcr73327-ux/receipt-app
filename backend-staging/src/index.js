@@ -33,7 +33,8 @@ import {
   createVoucher,
   getVoucherByNo,
   cancelVoucher,
-  listVouchers
+  listVouchers,
+  batchImportDocuments
 } from './services/documentService.js';
 import {
   syncReceiptToGoogleSheets,
@@ -350,7 +351,8 @@ export default {
           });
 
           // Phase 1.2: Asynchronous background sync to Google Sheets (Non-blocking)
-          if (ctx && typeof ctx.waitUntil === 'function') {
+          // Disabled by default (D1 Database Only mode)
+          if (env.ENABLE_GOOGLE_SHEETS_SYNC === 'true' && ctx && typeof ctx.waitUntil === 'function') {
             ctx.waitUntil(
               syncReceiptToGoogleSheets(receipt, env).catch((err) =>
                 console.warn('Background Sheets sync failed for receipt:', receipt.receipt_no, err.message)
@@ -412,7 +414,8 @@ export default {
           });
 
           // Phase 1.2: Asynchronous background sync to Google Sheets (Non-blocking)
-          if (ctx && typeof ctx.waitUntil === 'function') {
+          // Disabled by default (D1 Database Only mode)
+          if (env.ENABLE_GOOGLE_SHEETS_SYNC === 'true' && ctx && typeof ctx.waitUntil === 'function') {
             ctx.waitUntil(
               syncCancelReceiptToGoogleSheets(receiptNo, reason, env).catch((err) =>
                 console.warn('Background Sheets sync failed for cancel receipt:', receiptNo, err.message)
@@ -440,7 +443,8 @@ export default {
           });
 
           // Phase 1.2: Asynchronous background sync to Google Sheets (Non-blocking)
-          if (ctx && typeof ctx.waitUntil === 'function') {
+          // Disabled by default (D1 Database Only mode)
+          if (env.ENABLE_GOOGLE_SHEETS_SYNC === 'true' && ctx && typeof ctx.waitUntil === 'function') {
             ctx.waitUntil(
               syncVoucherToGoogleSheets(voucher, env).catch((err) =>
                 console.warn('Background Sheets sync failed for voucher:', voucher.voucher_no, err.message)
@@ -502,7 +506,8 @@ export default {
           });
 
           // Phase 1.2: Asynchronous background sync to Google Sheets (Non-blocking)
-          if (ctx && typeof ctx.waitUntil === 'function') {
+          // Disabled by default (D1 Database Only mode)
+          if (env.ENABLE_GOOGLE_SHEETS_SYNC === 'true' && ctx && typeof ctx.waitUntil === 'function') {
             ctx.waitUntil(
               syncCancelVoucherToGoogleSheets(voucherNo, reason, env).catch((err) =>
                 console.warn('Background Sheets sync failed for cancel voucher:', voucherNo, err.message)
@@ -512,6 +517,36 @@ export default {
 
           return successResponse(corsHeaders, cancelled, `ยกเลิกใบสำคัญจ่ายเลขที่ ${voucherNo} สำเร็จ`);
         });
+      }
+
+      // 6.5 POST /api/v1/documents/import-batch - นำเข้าข้อมูลใบเสร็จและใบสำคัญจ่ายเดิมแบบ Batch
+      if (path === '/api/v1/documents/import-batch' && request.method === 'POST') {
+        const body = await parseJsonBody(request);
+        const { receipts = [], vouchers = [] } = body;
+
+        const importResult = await batchImportDocuments(env.DB, { receipts, vouchers });
+
+        // Record Audit Log for Data Migration
+        try {
+          await recordAuditLog(env.DB, {
+            actorEmail: request.headers.get('X-User-Email') || 'admin@srisuk-rubber.com',
+            actorRole: 'Admin',
+            action: 'BATCH_IMPORT_DOCUMENTS',
+            resourceType: 'migration',
+            resourceId: 'local_to_d1',
+            details: {
+              importedReceipts: importResult.importedReceipts,
+              skippedReceipts: importResult.skippedReceipts,
+              importedVouchers: importResult.importedVouchers,
+              skippedVouchers: importResult.skippedVouchers
+            },
+            ipAddress: request.headers.get('CF-Connecting-IP') || '127.0.0.1'
+          });
+        } catch (auditErr) {
+          console.error('Audit log error on import-batch:', auditErr);
+        }
+
+        return successResponse(corsHeaders, importResult, importResult.message);
       }
 
       // 7. Manual Google Sheets Sync Endpoints (Phase 1.2)

@@ -6,6 +6,7 @@ compatibility_date = "2024-01-01"
 ENVIRONMENT = "staging"
 JWT_EXPIRATION_HOURS = "24"
 GOOGLE_SHEETS_WEBHOOK = "https://script.google.com/macros/s/AKfycbyg4uurkB24tvAUP33Xaxgb5JXyPZK06yPCTKnQUDIGSj2lidTmi-T8qx3MJ7ob938d/exec"
+ENABLE_GOOGLE_SHEETS_SYNC = "false"
 
 # Cloudflare D1 Database Binding สำหรับ Staging Environment
 [[d1_databases]]
@@ -13,11 +14,12 @@ binding = "DB"
 database_name = "receipt_db_staging"
 database_id = "e989db7a-7221-404f-b459-39ff1281be53"
 
-# Cloudflare R2 Bucket Binding (Phase 3 Automated Backup)
-[[r2_buckets]]
-binding = "BACKUP_BUCKET"
-bucket_name = "receipt-backup-staging"
+# Cloudflare R2 Bucket Binding (Optional Phase 3: Enable when R2 is activated on Dashboard)
+# [[r2_buckets]]
+# binding = "BACKUP_BUCKET"
+# bucket_name = "receipt-backup-staging"
 
-# Cloudflare Cron Triggers (Daily backup at 01:00 AM Bangkok / 18:00 UTC)
-[triggers]
-crons = ["0 18 * * *"]
+# Cloudflare Cron Triggers (Optional Phase 3 Daily backup at 01:00 AM Bangkok)
+# [triggers]
+# crons = ["0 18 * * *"]
+

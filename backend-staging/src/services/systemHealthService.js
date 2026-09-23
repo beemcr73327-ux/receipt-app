@@ -88,6 +88,7 @@ export async function getDetailedSystemHealth(env, options = {}) {
       d1Database: d1Health,
       r2Storage: r2Health,
       googleSheetsIntegration: {
+        mode: env?.ENABLE_GOOGLE_SHEETS_SYNC === 'true' ? 'ACTIVE' : 'STANDALONE_D1',
         configured: sheetsWebhookConfigured,
         webhookUrlMasked: sheetsWebhookConfigured ? `${env.GOOGLE_SHEETS_WEBHOOK.substring(0, 45)}...` : null
       }

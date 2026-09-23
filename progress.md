@@ -136,6 +136,7 @@ graph TD
 | **Phase 2.4.6** | Factory DRC White Screen Fix & 5-Stage Seeder (`npm run d1:seed`) | ✅ **เสร็จ 100%** | แก้ไขจอขาว และรีเซ็ตข้อมูลสมบูรณ์ |
 | **Phase 2.4.7** | Rubber Lot & Sales Metadata (`lot_name`, `lot_date`, `sale_date`, `ref_lot_no`) | ✅ **เสร็จ 100%** | หลังบ้านเสร็จ 100% |
 | **Phase 3** | Automated R2 Backup & Monitoring (Daily Cron + Diagnostics) | ✅ **เสร็จ 100%** | พร้อมใช้งานทั้ง Local และ Cloudflare |
+| **Phase 1.4** | Cloudflare D1 Live Deployment & Auto-Migrate Engine (D1 Standalone) | ✅ **เสร็จสมบูรณ์ 100%** | 🟢 **เปิดใช้งานบน Cloudflare Workers + D1 จริง** |
 
 ---
 
@@ -157,16 +158,18 @@ graph TD
 
 ## 💻 สิ่งที่ผู้ใช้ต้องทำต่อไป (Next Actions)
 
-### 1. ใช้งานและทดสอบในเครื่อง:
-- ใช้งานหน้าเว็บปกติ: `npm run dev` (พอร์ต 5173) เพื่อออกใบเสร็จรับเงินและใบสำคัญจ่าย
-- รัน Staging Backend ในเครื่อง (หากต้องการทดสอบผ่าน D1): `npm run staging:server` (พอร์ต 8787)
+### 1. เริ่มใช้งานจริงบน Cloudflare D1:
+- เปิดเว็บแอปพลิเคชัน: `npm run dev` (พอร์ต 5173)
+- ไปที่ **ตั้งค่า (Settings)** $\rightarrow$ เลือก **⚡ Staging Mode (Edge D1 5.0)** (เชื่อมต่อไปที่ `https://receipt-backend-staging.beemcr73327.workers.dev`)
+- กดปุ่ม **"🚀 นำเข้าข้อมูลประวัติเข้าสู่ Database"** เพื่อดึงบิลเดิมในเครื่องขึ้นสู่ Cloudflare D1 ทันที
 
 ### 2. บันทึกและส่งโค้ดขึ้น GitHub:
 ```bash
 git add .
-git commit -m "feat: complete Phase 2.4.7 metadata, Phase 3 R2 backup and update PRD v5.1"
+git commit -m "feat: complete Cloudflare D1 deployment, Auto-Migrate engine and sequence seed tools"
 git push origin feature/backend-staging
 ```
 
 ---
-*จัดทำและบันทึกความคืบหน้าอย่างเป็นทางการ ณ วันที่ 21 กันยายน 2569 (2026-09-21)*
+*จัดทำและบันทึกความคืบหน้าอย่างเป็นทางการ ณ วันที่ 23 กันยายน 2569 (2026-09-23)*
+

@@ -12,7 +12,8 @@ import {
   createVoucher,
   getVoucherByNo,
   cancelVoucher,
-  listVouchers
+  listVouchers,
+  batchImportDocuments
 } from '../services/documentService.js';
 
 async function runTests() {
@@ -222,6 +223,21 @@ async function runTests() {
             }
             return { success: true };
           }
+          if (sql.includes('INSERT INTO receipt_items')) {
+            const [receipt_id, item_title, quantity, unit_price, drc_percent, discount_amount, discount_details, net_amount, sort_order] = boundParams;
+            mockReceiptItems.push({ receipt_id, item_title, quantity, unit_price, drc_percent, discount_amount, discount_details, net_amount, sort_order });
+            return { success: true };
+          }
+          if (sql.includes('INSERT INTO voucher_items')) {
+            const [voucher_id, item_date, description, amount, sort_order] = boundParams;
+            mockVoucherItems.push({ voucher_id, item_date, description, amount, sort_order });
+            return { success: true };
+          }
+          if (sql.includes('document_sequences')) {
+            const [docType, prefix, seedVal] = boundParams;
+            mockSequences.set(`${docType}_${prefix}`, seedVal);
+            return { success: true };
+          }
           return { success: true };
         }
       };
@@ -371,6 +387,44 @@ async function runTests() {
   // Test List Vouchers
   const vouchersList = await listVouchers(mockDb, { page: 1, pageSize: 10 });
   assertEqual(vouchersList.total, 1, 'List vouchers returns total count 1');
+
+  // --- Testing Batch Import & Migration Engine ---
+  const batchData = {
+    receipts: [
+      {
+        receiptNo: '69090001', // Already exists in mockReceipts
+        buyerName: 'ร้านเก่า',
+        items: [{ itemTitle: 'ยาง', quantity: 1, unitPrice: 10, netAmount: 10 }]
+      },
+      {
+        receiptNo: '69090010', // New receipt
+        buyerName: 'ร้านเกษตรกรใหม่',
+        docDate: '2026-09-10',
+        items: [{ itemTitle: 'ยางแผ่น', quantity: 100, unitPrice: 50, netAmount: 5000 }]
+      }
+    ],
+    vouchers: [
+      {
+        voucherNo: '69090001', // Already exists in mockVouchers
+        receiverName: 'ผู้รับเงินเดิม',
+        items: [{ description: 'ค่าของ', amount: 500 }]
+      },
+      {
+        voucherNo: '69090005', // New voucher
+        receiverName: 'ร้านอะไหล่เกษตร',
+        docDate: '2026-09-05',
+        items: [{ description: 'ค่าน้ำมัน', amount: 1200 }]
+      }
+    ]
+  };
+
+  const importResult = await batchImportDocuments(mockDb, batchData);
+  assertEqual(importResult.importedReceipts, 1, 'Batch import imports 1 new receipt');
+  assertEqual(importResult.skippedReceipts, 1, 'Batch import skips 1 duplicate receipt (69090001)');
+  assertEqual(importResult.importedVouchers, 1, 'Batch import imports 1 new voucher');
+  assertEqual(importResult.skippedVouchers, 1, 'Batch import skips 1 duplicate voucher (69090001)');
+  assertEqual(importResult.maxReceiptSeqByPrefix['6909'], 10, 'Batch import tracks max receipt sequence 10');
+  assertEqual(importResult.maxVoucherSeqByPrefix['6909'], 5, 'Batch import tracks max voucher sequence 5');
 
   console.log(`\n📊 Document CRUD Test Results: ${passed} Passed, ${failed} Failed`);
 }

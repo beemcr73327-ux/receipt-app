@@ -594,3 +594,224 @@ export async function listVouchers(db, {
     vouchers: listRes.results || []
   };
 }
+
+// ==========================================
+// 3. BATCH IMPORT & MIGRATION ENGINE
+// ==========================================
+
+/**
+ * นำเข้าชุดข้อมูลใบเสร็จและใบสำคัญจ่ายเดิมแบบ Batch พร้อม De-duplication และตั้งค่า Sequence อัตโนมัติ
+ * @param {D1Database} db 
+ * @param {object} payload - { receipts: [], vouchers: [] }
+ * @param {object} [options]
+ * @returns {Promise<object>}
+ */
+export async function batchImportDocuments(db, { receipts = [], vouchers = [] } = {}, options = {}) {
+  let importedReceipts = 0;
+  let skippedReceipts = 0;
+  let importedVouchers = 0;
+  let skippedVouchers = 0;
+  const maxReceiptSeqByPrefix = {};
+  const maxVoucherSeqByPrefix = {};
+
+  // 1. นำเข้าใบเสร็จรับเงิน
+  if (Array.isArray(receipts) && receipts.length > 0) {
+    for (const r of receipts) {
+      const rawNo = String(r.receiptNo || '').trim();
+      if (!rawNo) {
+        skippedReceipts++;
+        continue;
+      }
+
+      // ตรวจสอบความซ้ำซ้อน
+      const existing = await db.prepare('SELECT id FROM receipts WHERE receipt_no = ?').bind(rawNo).first();
+      if (existing) {
+        skippedReceipts++;
+        continue;
+      }
+
+      const docDate = r.docDate || r.dateIso || new Date().toISOString().split('T')[0];
+      const buyerName = (r.buyerName || '').trim() || 'ลูกค้าทั่วไป';
+      const buyerAddress = (r.buyerAddress || '').trim();
+      const buyerTaxId = (r.buyerTaxId || r.taxId || '').trim();
+      const period = (r.period || '').trim();
+      const paymentMethod = r.paymentMethod || 'เงินโอน';
+      const payDate = r.payDate || r.paymentDateIso || docDate;
+      const notes = (r.notes || '').trim();
+      const cashierName = (r.cashierName || 'Cashier').trim();
+      const status = r.status === 'ยกเลิก' ? 'ยกเลิก' : 'ปกติ';
+      const cancelReason = r.cancelReason || null;
+
+      const headerStmt = db.prepare(`
+        INSERT INTO receipts (
+          receipt_no, doc_date, buyer_name, buyer_address, buyer_tax_id,
+          period, payment_method, pay_date, notes, cashier_name, status, cancel_reason
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING id;
+      `);
+
+      const header = await headerStmt.bind(
+        rawNo, docDate, buyerName, buyerAddress, buyerTaxId,
+        period, paymentMethod, payDate, notes, cashierName, status, cancelReason
+      ).first();
+
+      const receiptId = header ? header.id : null;
+
+      if (receiptId && Array.isArray(r.items) && r.items.length > 0) {
+        for (let idx = 0; idx < r.items.length; idx++) {
+          const item = r.items[idx];
+          const quantity = toNum(item.quantity || item.qty);
+          const unitPrice = toNum(item.unitPrice || item.price);
+          const drcPercent = toNum(item.drcPercent || item.drc, 0);
+          const discountAmount = toNum(item.discountAmount || item.discount, 0);
+          const drcMultiplier = drcPercent > 0 ? drcPercent / 100 : 1;
+          const baseTotal = quantity * unitPrice * drcMultiplier;
+          const netAmount = toNum(item.netAmount, Math.round((baseTotal - discountAmount) * 100) / 100);
+
+          await db.prepare(`
+            INSERT INTO receipt_items (
+              receipt_id, item_title, quantity, unit_price, drc_percent,
+              discount_amount, discount_details, net_amount, sort_order
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).bind(
+            receiptId,
+            (item.itemTitle || item.title || item.name || 'ยางพารา').trim(),
+            quantity,
+            unitPrice,
+            drcPercent,
+            discountAmount,
+            (item.discountDetails || item.discountDetail || '').trim(),
+            netAmount,
+            idx + 1
+          ).run();
+        }
+      }
+
+      importedReceipts++;
+
+      // สกัดเลขที่เอกสารเพื่อนับลำดับล่าสุด
+      const match = rawNo.match(/^(\d{4})(\d{4})$/);
+      if (match) {
+        const pfx = match[1];
+        const seq = parseInt(match[2], 10);
+        if (!isNaN(seq)) {
+          maxReceiptSeqByPrefix[pfx] = Math.max(maxReceiptSeqByPrefix[pfx] || 0, seq);
+        }
+      }
+    }
+  }
+
+  // 2. นำเข้าใบสำคัญจ่าย
+  if (Array.isArray(vouchers) && vouchers.length > 0) {
+    for (const v of vouchers) {
+      const rawNo = String(v.voucherNo || '').trim();
+      if (!rawNo) {
+        skippedVouchers++;
+        continue;
+      }
+
+      const existing = await db.prepare('SELECT id FROM vouchers WHERE voucher_no = ?').bind(rawNo).first();
+      if (existing) {
+        skippedVouchers++;
+        continue;
+      }
+
+      const docDate = v.docDate || v.dateIso || new Date().toISOString().split('T')[0];
+      const receiverName = (v.receiverName || v.receiver || '').trim() || 'ผู้รับเงิน';
+      const overallDescription = (v.overallDescription || v.description || v.mainDescription || '').trim();
+      const refDocNo = (v.refDocNo || v.refNo || '').trim();
+      const paymentMethod = v.paymentMethod || 'เงินโอน';
+      const chequeNo = (v.chequeNo || v.chequeOrDestAcc || '').trim();
+      const bankAccount = (v.bankAccount || v.sourceBankAcc || v.destBankAcc || '').trim();
+      const paymentDate = v.paymentDate || v.payDate || docDate;
+      const notes = (v.notes || '').trim();
+      const cashierName = (v.cashierName || 'Cashier').trim();
+      const status = v.status === 'ยกเลิก' ? 'ยกเลิก' : 'ปกติ';
+      const cancelReason = v.cancelReason || null;
+      const timestamp = new Date().toISOString();
+
+      const headerStmt = db.prepare(`
+        INSERT INTO vouchers (
+          voucher_no, doc_date, transaction_timestamp, receiver_name,
+          overall_description, ref_doc_no, payment_method, cheque_no,
+          bank_account, payment_date, notes, cashier_name, status, cancel_reason
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        RETURNING id;
+      `);
+
+      const header = await headerStmt.bind(
+        rawNo, docDate, timestamp, receiverName,
+        overallDescription, refDocNo, paymentMethod, chequeNo,
+        bankAccount, paymentDate, notes, cashierName, status, cancelReason
+      ).first();
+
+      const voucherId = header ? header.id : null;
+
+      if (voucherId && Array.isArray(v.items) && v.items.length > 0) {
+        for (let idx = 0; idx < v.items.length; idx++) {
+          const item = v.items[idx];
+          const amount = toNum(item.amount);
+          await db.prepare(`
+            INSERT INTO voucher_items (voucher_id, item_date, description, amount, sort_order)
+            VALUES (?, ?, ?, ?, ?)
+          `).bind(
+            voucherId,
+            item.itemDate || docDate,
+            (item.description || item.title || '').trim(),
+            amount,
+            idx + 1
+          ).run();
+        }
+      }
+
+      importedVouchers++;
+
+      const match = rawNo.match(/^(\d{4})(\d{4})$/);
+      if (match) {
+        const pfx = match[1];
+        const seq = parseInt(match[2], 10);
+        if (!isNaN(seq)) {
+          maxVoucherSeqByPrefix[pfx] = Math.max(maxVoucherSeqByPrefix[pfx] || 0, seq);
+        }
+      }
+    }
+  }
+
+  // 3. ปรับค่าตัวนับ Sequence ให้อัตโนมัติ เพื่อให้บิลถัดไปออกต่อได้ทันที
+  for (const [pfx, maxSeq] of Object.entries(maxReceiptSeqByPrefix)) {
+    if (maxSeq > 0) {
+      await db.prepare(`
+        INSERT INTO document_sequences (doc_type, prefix, current_seq, manual_seed, updated_at)
+        VALUES ('receipt', ?, ?, ?, DATETIME('now', '+7 hours'))
+        ON CONFLICT(doc_type, prefix) DO UPDATE SET
+          current_seq = MAX(current_seq, excluded.current_seq),
+          manual_seed = MAX(COALESCE(manual_seed, 0), excluded.manual_seed),
+          updated_at = DATETIME('now', '+7 hours');
+      `).bind(pfx, maxSeq, maxSeq).run();
+    }
+  }
+
+  for (const [pfx, maxSeq] of Object.entries(maxVoucherSeqByPrefix)) {
+    if (maxSeq > 0) {
+      await db.prepare(`
+        INSERT INTO document_sequences (doc_type, prefix, current_seq, manual_seed, updated_at)
+        VALUES ('voucher', ?, ?, ?, DATETIME('now', '+7 hours'))
+        ON CONFLICT(doc_type, prefix) DO UPDATE SET
+          current_seq = MAX(current_seq, excluded.current_seq),
+          manual_seed = MAX(COALESCE(manual_seed, 0), excluded.manual_seed),
+          updated_at = DATETIME('now', '+7 hours');
+      `).bind(pfx, maxSeq, maxSeq).run();
+    }
+  }
+
+  return {
+    importedReceipts,
+    skippedReceipts,
+    importedVouchers,
+    skippedVouchers,
+    maxReceiptSeqByPrefix,
+    maxVoucherSeqByPrefix,
+    message: `นำเข้าสำเร็จ: ใบเสร็จ ${importedReceipts} ใบ (ข้ามที่มีอยู่แล้ว ${skippedReceipts} ใบ), ใบสำคัญจ่าย ${importedVouchers} ใบ (ข้ามที่มีอยู่แล้ว ${skippedVouchers} ใบ)`
+  };
+}
+

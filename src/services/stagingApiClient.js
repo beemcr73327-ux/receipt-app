@@ -5,7 +5,8 @@
  * Organization: บริษัท ศรีสุข พูนทรัพย์ ยางพารา จำกัด
  */
 
-export const DEFAULT_STAGING_API_URL = 'http://localhost:8787';
+export const DEFAULT_STAGING_API_URL = 'https://receipt-backend-staging.beemcr73327.workers.dev';
+export const LOCAL_STAGING_API_URL = 'http://localhost:8787';
 
 /**
  * Generates a standard UUIDv4 for Idempotency Key
@@ -202,3 +203,61 @@ export async function cancelVoucherStaging(voucherNo, reason, baseUrl = DEFAULT_
 
   return resJson.data;
 }
+
+/**
+ * 6. Batch Import Receipts & Vouchers (POST /api/v1/documents/import-batch)
+ */
+export async function importBatchDocuments(batchPayload, baseUrl = DEFAULT_STAGING_API_URL, options = {}) {
+  const url = `${cleanApiUrl(baseUrl)}/api/v1/documents/import-batch`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {})
+    },
+    body: JSON.stringify(batchPayload)
+  });
+
+  const resJson = await response.json();
+  if (!response.ok || resJson.status === 'error') {
+    throw new Error(resJson.message || `เกิดข้อผิดพลาดในการนำเข้าข้อมูล (HTTP ${response.status})`);
+  }
+
+  return resJson.data;
+}
+
+/**
+ * 7. Seed Sequence (POST /api/v1/sequence/seed)
+ */
+export async function seedDocumentSequence(docType, prefix, seedValue, baseUrl = DEFAULT_STAGING_API_URL, options = {}) {
+  const url = `${cleanApiUrl(baseUrl)}/api/v1/sequence/seed`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {})
+    },
+    body: JSON.stringify({ docType, prefix, seedValue: parseInt(seedValue, 10) })
+  });
+
+  const resJson = await response.json();
+  if (!response.ok || resJson.status === 'error') {
+    throw new Error(resJson.message || `เกิดข้อผิดพลาดในการตั้งค่าเลขเริ่มต้น (HTTP ${response.status})`);
+  }
+
+  return resJson.data;
+}
+
+/**
+ * 8. Preview Next Sequence (GET /api/v1/sequence/preview)
+ */
+export async function previewDocumentSequence(docType, baseUrl = DEFAULT_STAGING_API_URL) {
+  const url = `${cleanApiUrl(baseUrl)}/api/v1/sequence/preview?docType=${encodeURIComponent(docType)}`;
+  const response = await fetch(url, { method: 'GET' });
+  const resJson = await response.json();
+  if (!response.ok || resJson.status === 'error') {
+    throw new Error(resJson.message || `ไม่สามารถดึงตัวอย่างเลขที่เอกสารได้ (HTTP ${response.status})`);
+  }
+  return resJson.data;
+}
+

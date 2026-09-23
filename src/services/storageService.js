@@ -11,6 +11,9 @@ import {
   createVoucherStaging,
   cancelVoucherStaging,
   checkStagingHealth,
+  importBatchDocuments,
+  seedDocumentSequence,
+  previewDocumentSequence,
   DEFAULT_STAGING_API_URL
 } from './stagingApiClient';
 
@@ -1126,6 +1129,39 @@ class StorageService {
     }
     console.groupEnd();
     return { success: false, users: null };
+  }
+
+  // --- Data Migration & Sequence Controls for D1 ---
+  getLocalStats() {
+    const receipts = this.getReceipts();
+    const vouchers = this.getVouchers();
+    return {
+      receiptCount: receipts.length,
+      voucherCount: vouchers.length,
+      latestReceiptNo: receipts[0]?.receiptNo || '-',
+      latestVoucherNo: vouchers[0]?.voucherNo || '-'
+    };
+  }
+
+  async migrateLocalStorageToD1(targetUrl = null) {
+    const settings = this.getSettings();
+    const apiUrl = targetUrl || settings.stagingApiUrl || DEFAULT_STAGING_API_URL;
+    const receipts = this.getReceipts();
+    const vouchers = this.getVouchers();
+
+    return await importBatchDocuments({ receipts, vouchers }, apiUrl);
+  }
+
+  async seedSequence(docType, prefix, seedValue, targetUrl = null) {
+    const settings = this.getSettings();
+    const apiUrl = targetUrl || settings.stagingApiUrl || DEFAULT_STAGING_API_URL;
+    return await seedDocumentSequence(docType, prefix, seedValue, apiUrl);
+  }
+
+  async previewSequence(docType, targetUrl = null) {
+    const settings = this.getSettings();
+    const apiUrl = targetUrl || settings.stagingApiUrl || DEFAULT_STAGING_API_URL;
+    return await previewDocumentSequence(docType, apiUrl);
   }
 }
 
