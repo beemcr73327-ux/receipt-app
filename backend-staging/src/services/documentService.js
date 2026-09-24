@@ -252,7 +252,8 @@ export async function listReceipts(db, {
   endDate = '',
   cashierName = '',
   page = 1,
-  pageSize = 20
+  pageSize = 20,
+  includeItems = false
 } = {}) {
   const conditions = [];
   const bindings = [];
@@ -288,8 +289,9 @@ export async function listReceipts(db, {
   const total = totalRes ? totalRes.total : 0;
 
   const listQuery = `
-    SELECT r.id, r.receipt_no, r.doc_date, r.buyer_name, r.period,
-           r.payment_method, r.pay_date, r.cashier_name, r.status, r.cancel_reason, r.created_at,
+    SELECT r.id, r.receipt_no, r.doc_date, r.buyer_name, r.buyer_address, r.buyer_tax_id, r.period,
+           r.payment_method, r.pay_date, r.notes, r.cashier_name, r.status, r.cancel_reason,
+           r.printed_timestamp, r.created_at, r.updated_at,
            COALESCE(SUM(ri.net_amount), 0) as total_amount,
            COUNT(ri.id) as item_count
     FROM receipts r
@@ -304,12 +306,36 @@ export async function listReceipts(db, {
   const listBindings = [...bindings, pageSize, offset];
   const listRes = await listStmt.bind(...listBindings).all();
 
+  const receipts = listRes.results || [];
+  if (includeItems && receipts.length > 0) {
+    for (const r of receipts) {
+      const itemStmt = db.prepare(`
+        SELECT * FROM receipt_items WHERE receipt_id = ? ORDER BY sort_order ASC, id ASC
+      `);
+      const itemRes = await itemStmt.bind(r.id).all();
+      r.items = (itemRes.results || []).map(itm => ({
+        id: itm.id,
+        title: itm.item_title,
+        itemTitle: itm.item_title,
+        quantity: itm.quantity,
+        unitPrice: itm.unit_price,
+        drc: itm.drc_percent ? `${itm.drc_percent}%` : '',
+        drcPercent: itm.drc_percent,
+        discountAmount: itm.discount_amount,
+        discountDetails: itm.discount_details,
+        amount: itm.net_amount,
+        netAmount: itm.net_amount,
+        period: itm.period || r.period || ''
+      }));
+    }
+  }
+
   return {
     page,
     pageSize,
     total,
     totalPages: Math.ceil(total / pageSize),
-    receipts: listRes.results || []
+    receipts
   };
 }
 
@@ -534,7 +560,8 @@ export async function listVouchers(db, {
   endDate = '',
   cashierName = '',
   page = 1,
-  pageSize = 20
+  pageSize = 20,
+  includeItems = false
 } = {}) {
   const conditions = [];
   const bindings = [];
@@ -570,8 +597,9 @@ export async function listVouchers(db, {
   const total = totalRes ? totalRes.total : 0;
 
   const listQuery = `
-    SELECT v.id, v.voucher_no, v.doc_date, v.receiver_name, v.overall_description,
-           v.payment_method, v.payment_date, v.cashier_name, v.status, v.cancel_reason, v.created_at,
+    SELECT v.id, v.voucher_no, v.doc_date, v.transaction_timestamp, v.receiver_name, v.overall_description,
+           v.ref_doc_no, v.payment_method, v.cheque_no, v.bank_account, v.payment_date,
+           v.notes, v.cashier_name, v.status, v.cancel_reason, v.created_at, v.updated_at,
            COALESCE(SUM(vi.amount), 0) as total_amount,
            COUNT(vi.id) as item_count
     FROM vouchers v
@@ -586,12 +614,28 @@ export async function listVouchers(db, {
   const listBindings = [...bindings, pageSize, offset];
   const listRes = await listStmt.bind(...listBindings).all();
 
+  const vouchers = listRes.results || [];
+  if (includeItems && vouchers.length > 0) {
+    for (const v of vouchers) {
+      const itemStmt = db.prepare(`
+        SELECT * FROM voucher_items WHERE voucher_id = ? ORDER BY sort_order ASC, id ASC
+      `);
+      const itemRes = await itemStmt.bind(v.id).all();
+      v.items = (itemRes.results || []).map(itm => ({
+        id: itm.id,
+        itemDate: itm.item_date,
+        description: itm.description,
+        amount: itm.amount
+      }));
+    }
+  }
+
   return {
     page,
     pageSize,
     total,
     totalPages: Math.ceil(total / pageSize),
-    vouchers: listRes.results || []
+    vouchers
   };
 }
 

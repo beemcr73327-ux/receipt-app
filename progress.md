@@ -2,10 +2,10 @@
 
 > **โปรเจกต์:** ระบบออกใบเสร็จรับเงิน ใบสำคัญจ่าย บันทึกบัญชี และระบบซื้อขาย Lot ยางพารา  
 > **องค์กร:** บริษัท ศรีสุข พูนทรัพย์ ยางพารา จำกัด  
-> **เวอร์ชัน:** 5.1 (Enterprise Production & Staging Edition)  
+> **เวอร์ชัน:** 5.2 (Cloudflare D1 & Excel Export Edition)  
 > **สาขา Git:** `feature/backend-staging`  
-> **วันที่อัปเดต:** 21 กันยายน 2569 (2026-09-21)  
-> **สถานะปัจจุบัน:** ระบบการเงิน (ใบเสร็จ/ใบสำคัญจ่าย) พร้อมใช้งาน 100% | ระบบสต็อกยางพารา (หลังบ้านเสร็จ 100%, พัก UX/UI ด้วย Feature Flag)
+> **วันที่อัปเดต:** 24 กันยายน 2569 (2026-09-24)  
+> **สถานะปัจจุบัน:** ระบบการเงิน (ใบเสร็จ/ใบสำคัญจ่าย) เชื่อม Cloudflare D1 + Export Excel สมบูรณ์ 100% | ระบบสต็อกยางพารา (หลังบ้านเสร็จ 100%, พัก UX/UI ด้วย Feature Flag)
 
 ---
 
@@ -96,14 +96,29 @@ graph TD
 
 ---
 
-## 🧪 สรุปผลการทดสอบระบบ Staging Backend ทั้งหมด (All 300 Tests Passed)
+### 6. 🔄 การเชื่อมโยง D1 Database เข้าสู่หน้าประวัติ และ Export Excel (.xlsx) 20/18 คอลัมน์ (Phase 1.5)
+* **ปัญหาที่ตรวจพบ:** ข้อมูลที่บันทึกลง Cloudflare D1 สำเร็จ แต่หน้าประวัติ (`ReceiptHistoryModal` และ `VoucherHistoryModal`) ไม่แสดงข้อมูล เพราะอ่านข้อมูลจาก `localStorage` เพียงอย่างเดียว และมี `fetchConfigFromGoogleSheets()` คอยเขียนทับ
+* **การแก้ไขเชิงสถาปัตยกรรม:**
+  1. [`documentService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/services/documentService.js) & [`index.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/backend-staging/src/index.js): เพิ่มการรองรับ `includeItems: true` ใน `listReceipts` และ `listVouchers` ให้ดึงรายการย่อยและฟิลด์สมบูรณ์
+  2. [`storageService.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/services/storageService.js): เพิ่มฟังก์ชัน `fetchReceiptsFromD1()` และ `fetchVouchersFromD1()` แปลงรูปแบบข้อมูลเข้าสู่โมเดลฝั่งหน้าบ้าน และซิงค์ลงแคช `localStorage` อัตโนมัติ
+  3. [`excelExport.js`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/utils/excelExport.js): ติดตั้ง SheetJS (`xlsx`) และสร้างฟังก์ชันส่งออก Excel โดยถอดแบบหัวตารางและโครงสร้าง 1-to-1 จาก Google Sheets เดิม:
+     - **ใบเสร็จรับเงิน (20 คอลัมน์):** วันที่, เลขที่ใบเสร็จ, นามผู้ซื้อ, ที่อยู่, เลขประจำตัวผู้เสียภาษี, งวด, รายการสินค้าหรือบริการ, จำนวน, ราคาต่อหน่วย, DRC(%), เพิ่มลด, รายละเอียด, จำนวนเงิน, ชำระโดย, วันที่โอน/สั่งจ่าย, หมายเหตุ, ผู้รับเงิน, สถานะ, สาเหตุที่ยกเลิก, วันที่พิมพ์/บันทึก
+     - **ใบสำคัญจ่าย (18 คอลัมน์):** วันที่เอกสาร, เลขที่เอกสาร, จ่ายให้, คำอธิบาย, เลขที่อ้างอิงเอกสาร, วันที่รายการ, รายการ, จำนวนเงิน, ชำระโดย, บัญชีต้นทาง, เลขที่เช็ค/เลขบัญชีปลายทาง, ธนาคาร, วันที่ชำระเงิน, หมายเหตุ, ผู้จัดทำ, สถานะ, สาเหตุยกเลิก, วันที่บันทึก/พิมพ์
+  4. [`ReceiptHistoryModal.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/ReceiptHistoryModal.jsx) & [`VoucherHistoryModal.jsx`](file:///Users/aukkdach/Library/Mobile%20Documents/com~apple~CloudDocs/Antigravity%20project/Receipt/src/components/VoucherHistoryModal.jsx):
+     - ซิงค์ข้อมูลสดจาก D1 ทันทีเมื่อเปิดหน้าประวัติ
+     - เพิ่มปุ่มสีเขียว **"Export Excel (.xlsx)"** ที่แถบเมนูด้านบน โดยส่งออกตามช่วงวันที่และเงื่อนไขการค้นหาที่ผู้ใช้เลือกไว้
+* **ผลลัพธ์:** ข้อมูลใน D1 แสดงผลในหน้าประวัติทันที และสามารถดาวน์โหลดเป็นไฟล์ Excel นำไปใช้งานต่อได้ 100% โดยไม่กระทบ UX/UI ส่วนอื่น
+
+---
+
+## 🧪 สรุปผลการทดสอบระบบ Staging Backend ทั้งหมด (All 324 Tests Passed)
 
 ```text
 🧪 1. Sequence Engine (Phase 0.2):           13 Passed, 0 Failed
 🧪 2. Idempotency Guard (Phase 0.3):         15 Passed, 0 Failed
 🧪 3. Immutable Audit Log (Phase 0.4):       20 Passed, 0 Failed
 🧪 4. Auth & RBAC System (Phase 0.5):        23 Passed, 0 Failed
-🧪 5. Document CRUD Engine (Phase 1.1):      20 Passed, 0 Failed
+🧪 5. Document CRUD Engine (Phase 1.1):      26 Passed, 0 Failed (รวม Batch Import)
 🧪 6. Google Sheets Sync (Phase 1.2):        16 Passed, 0 Failed
 🧪 7. Staging Client & Toggle (Phase 1.3):    8 Passed, 0 Failed
 🧪 8. Rubber Purchase Engine (Phase 2.1):    30 Passed, 0 Failed
@@ -112,9 +127,10 @@ graph TD
 🧪 11. Rubber HTTP Routes & UI (Phase 2.4):  40 Passed, 0 Failed
 🧪 12. Backup Service & R2 (Phase 3):        23 Passed, 0 Failed
 🧪 13. System Health & Cron (Phase 3):       21 Passed, 0 Failed
+🧪 14. Excel Export Generator (Phase 1.5):   18 Passed, 0 Failed
 
-🏆 รวมผลการทดสอบทั้งหมดของระบบ: 300 Passed, 0 Failed (100% Pass Rate)
-🚀 Frontend Production Build:       ✓ 1,609 modules transformed (Built in 1.64s)
+🏆 รวมผลการทดสอบทั้งหมดของระบบ: 324 Passed, 0 Failed (100% Pass Rate)
+🚀 Frontend Production Build:       ✓ 1,611 modules transformed (Built in 1.93s)
 ```
 
 ---
@@ -127,6 +143,8 @@ graph TD
 | **Phase 1.1** | Complete Document CRUD Engine (Receipts & Vouchers) | ✅ **เสร็จ 100%** | 🟢 **เปิดใช้งานจริง (Active)** |
 | **Phase 1.2** | Google Sheets Background Sync Service (`ctx.waitUntil`) | ✅ **เสร็จ 100%** | 🟢 **เปิดใช้งานจริง (Active)** |
 | **Phase 1.3** | Frontend Staging Toggle & Health Latency Ping | ✅ **เสร็จ 100%** | 🟢 **เปิดใช้งานจริง (Active)** |
+| **Phase 1.4** | Cloudflare D1 Live Deployment & Auto-Migrate Engine (D1 Standalone) | ✅ **เสร็จสมบูรณ์ 100%** | 🟢 **เปิดใช้งานบน Cloudflare Workers + D1 จริง** |
+| **Phase 1.5** | D1 History Live Synchronization & 20/18-Col Excel Export (.xlsx) | ✅ **เสร็จสมบูรณ์ 100%** | 🟢 **เปิดใช้งานจริง (Active)** |
 | **Phase 2.1** | Inbound Weighing & Purchase Engine (`PB-YYMMXXXX`) | ✅ **เสร็จ 100%** | 🟡 พักไว้ (Feature Flag OFF) |
 | **Phase 2.2** | Lot Grouping & Weighted Average Cost (`LOT-YYMMXXXX`) | ✅ **เสร็จ 100%** | 🟡 พักไว้ (Feature Flag OFF) |
 | **Phase 2.3** | Outbound Factory Sales & P&L Settle (`SL-YYMMXXXX`) | ✅ **เสร็จ 100%** | 🟡 พักไว้ (Feature Flag OFF) |
@@ -136,7 +154,6 @@ graph TD
 | **Phase 2.4.6** | Factory DRC White Screen Fix & 5-Stage Seeder (`npm run d1:seed`) | ✅ **เสร็จ 100%** | แก้ไขจอขาว และรีเซ็ตข้อมูลสมบูรณ์ |
 | **Phase 2.4.7** | Rubber Lot & Sales Metadata (`lot_name`, `lot_date`, `sale_date`, `ref_lot_no`) | ✅ **เสร็จ 100%** | หลังบ้านเสร็จ 100% |
 | **Phase 3** | Automated R2 Backup & Monitoring (Daily Cron + Diagnostics) | ✅ **เสร็จ 100%** | พร้อมใช้งานทั้ง Local และ Cloudflare |
-| **Phase 1.4** | Cloudflare D1 Live Deployment & Auto-Migrate Engine (D1 Standalone) | ✅ **เสร็จสมบูรณ์ 100%** | 🟢 **เปิดใช้งานบน Cloudflare Workers + D1 จริง** |
 
 ---
 

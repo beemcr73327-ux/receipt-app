@@ -261,3 +261,52 @@ export async function previewDocumentSequence(docType, baseUrl = DEFAULT_STAGING
   return resJson.data;
 }
 
+/**
+ * 9. List Receipts from Staging D1 (GET /api/v1/receipts)
+ */
+export async function listReceiptsStaging(params = {}, baseUrl = DEFAULT_STAGING_API_URL) {
+  const query = new URLSearchParams();
+  if (params.search) query.set('search', params.search);
+  if (params.status) query.set('status', params.status);
+  if (params.startDate) query.set('startDate', params.startDate);
+  if (params.endDate) query.set('endDate', params.endDate);
+  if (params.cashierName) query.set('cashierName', params.cashierName);
+  if (params.page) query.set('page', String(params.page));
+  if (params.pageSize) query.set('pageSize', String(params.pageSize));
+  query.set('includeItems', params.includeItems !== false ? 'true' : 'false');
+
+  const queryString = query.toString() ? `?${query.toString()}` : '';
+  const url = `${cleanApiUrl(baseUrl)}/api/v1/receipts${queryString}`;
+  const response = await fetch(url, { method: 'GET' });
+  const resJson = await response.json();
+  if (!response.ok || resJson.status === 'error') {
+    throw new Error(resJson.message || `ไม่สามารถดึงรายการใบเสร็จรับเงินได้ (HTTP ${response.status})`);
+  }
+  return resJson.data;
+}
+
+/**
+ * 10. List Payment Vouchers from Staging D1 (GET /api/v1/vouchers)
+ */
+export async function listVouchersStaging(params = {}, baseUrl = DEFAULT_STAGING_API_URL) {
+  const query = new URLSearchParams();
+  if (params.search) query.set('search', params.search);
+  if (params.status) query.set('status', params.status);
+  if (params.startDate) query.set('startDate', params.startDate);
+  if (params.endDate) query.set('endDate', params.endDate);
+  if (params.cashierName) query.set('cashierName', params.cashierName);
+  if (params.page) query.set('page', String(params.page));
+  if (params.pageSize) query.set('pageSize', String(params.pageSize));
+  query.set('includeItems', params.includeItems !== false ? 'true' : 'false');
+
+  const queryString = query.toString() ? `?${query.toString()}` : '';
+  const url = `${cleanApiUrl(baseUrl)}/api/v1/vouchers${queryString}`;
+  const response = await fetch(url, { method: 'GET' });
+  const resJson = await response.json();
+  if (!response.ok || resJson.status === 'error') {
+    throw new Error(resJson.message || `ไม่สามารถดึงรายการใบสำคัญจ่ายได้ (HTTP ${response.status})`);
+  }
+  return resJson.data;
+}
+
+

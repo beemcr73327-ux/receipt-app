@@ -372,7 +372,8 @@ export default {
         const endDate = url.searchParams.get('endDate') || '';
         const cashierName = url.searchParams.get('cashierName') || '';
         const page = parseInt(url.searchParams.get('page') || '1', 10);
-        const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10);
+        const pageSize = parseInt(url.searchParams.get('pageSize') || '50', 10);
+        const includeItems = url.searchParams.get('includeItems') === 'true' || url.searchParams.get('items') === 'true';
 
         const listData = await listReceipts(env.DB, {
           search,
@@ -381,7 +382,8 @@ export default {
           endDate,
           cashierName,
           page,
-          pageSize
+          pageSize,
+          includeItems
         });
 
         return successResponse(corsHeaders, listData);
@@ -464,7 +466,8 @@ export default {
         const endDate = url.searchParams.get('endDate') || '';
         const cashierName = url.searchParams.get('cashierName') || '';
         const page = parseInt(url.searchParams.get('page') || '1', 10);
-        const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10);
+        const pageSize = parseInt(url.searchParams.get('pageSize') || '50', 10);
+        const includeItems = url.searchParams.get('includeItems') === 'true' || url.searchParams.get('items') === 'true';
 
         const listData = await listVouchers(env.DB, {
           search,
@@ -473,7 +476,8 @@ export default {
           endDate,
           cashierName,
           page,
-          pageSize
+          pageSize,
+          includeItems
         });
 
         return successResponse(corsHeaders, listData);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Search,
   Printer,
@@ -13,10 +13,12 @@ import {
   History,
   Plus,
   Calendar,
-  RotateCcw
+  RotateCcw,
+  FileSpreadsheet
 } from 'lucide-react';
 import { storageService } from '../services/storageService';
 import { formatThaiDateTime, normalizeThaiDate } from '../utils/dateUtils';
+import { exportReceiptsToExcel } from '../utils/excelExport';
 
 // Helper to convert Thai Date "DD/MM/YYYY" (พ.ศ.) to Comparable ISO Date (YYYY-MM-DD)
 const parseThaiDateToISO = (dateStr) => {
@@ -59,9 +61,36 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
   const [error, setError] = useState('');
   const [localRefresh, setLocalRefresh] = useState(0);
 
+  // Live Data & Sync States
+  const [receiptsList, setReceiptsList] = useState(() => storageService.getReceipts());
+  const [isLoadingD1, setIsLoadingD1] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportFeedback, setExportFeedback] = useState(null);
+
+  // Sync data on load and when refreshed
+  useEffect(() => {
+    let isMounted = true;
+    const settings = storageService.getSettings();
+    if (settings.apiMode === 'staging') {
+      setIsLoadingD1(true);
+      storageService.fetchReceiptsFromD1()
+        .then((data) => {
+          if (isMounted && Array.isArray(data)) {
+            setReceiptsList(data);
+          }
+        })
+        .catch((err) => console.warn('⚠️ [ReceiptHistoryModal] D1 fetch error:', err.message))
+        .finally(() => {
+          if (isMounted) setIsLoadingD1(false);
+        });
+    } else {
+      setReceiptsList(storageService.getReceipts());
+    }
+    return () => { isMounted = false; };
+  }, [localRefresh]);
+
   const cleanStr = (val) => String(val || '').replace(/^'+/, '').trim();
-  const rawReceipts = storageService.getReceipts();
-  const receipts = rawReceipts.map(r => ({
+  const receipts = receiptsList.map(r => ({
     ...r,
     receiptNo: cleanStr(r.receiptNo),
     dateThai: normalizeThaiDate(r.dateThai),
@@ -74,7 +103,8 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
     cashierName: cleanStr(r.cashierName),
     items: r.items ? r.items.map(it => ({
       ...it,
-      title: cleanStr(it.title),
+      title: cleanStr(it.title || it.itemTitle),
+      itemTitle: cleanStr(it.itemTitle || it.title),
       period: cleanStr(it.period)
     })) : []
   }));
@@ -185,6 +215,22 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
     return pages;
   };
 
+  const handleExportExcel = () => {
+    setIsExporting(true);
+    setExportFeedback(null);
+    try {
+      const dateRangeStr = startDate && endDate ? `_${startDate}_ถึง_${endDate}` : '';
+      const filename = `ประวัติใบเสร็จรับเงิน${dateRangeStr}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const result = exportReceiptsToExcel(filteredReceipts, filename);
+      setExportFeedback(`Export สำเร็จ (${result.count} แถว)`);
+      setTimeout(() => setExportFeedback(null), 4000);
+    } catch (err) {
+      alert(`ไม่สามารถ Export Excel ได้: ${err.message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-[#F5F6FA] text-slate-800 no-print overflow-hidden">
       
@@ -210,8 +256,33 @@ export default function ReceiptHistoryModal({ onCreateNewReceipt, onViewReceiptD
           </div>
         </div>
 
-        {/* Right: Create Receipt Button */}
-        <div>
+        {/* Right: Export Excel & Create Receipt Buttons */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {isLoadingD1 && (
+            <span className="text-[11px] text-blue-600 font-medium flex items-center gap-1 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-200">
+              <RotateCcw className="w-3 h-3 animate-spin" />
+              <span>ซิงค์ Cloud D1...</span>
+            </span>
+          )}
+
+          {exportFeedback && (
+            <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{exportFeedback}</span>
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            disabled={isExporting || filteredReceipts.length === 0}
+            className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm rounded-xl transition flex items-center gap-2 shadow-sm shadow-emerald-500/20 cursor-pointer disabled:opacity-50"
+            title="Export ข้อมูลเป็นไฟล์ Excel (.xlsx) ตามตัวกรองปัจจุบัน"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Export Excel ({filteredReceipts.length})</span>
+          </button>
+
           <button
             type="button"
             onClick={onCreateNewReceipt}

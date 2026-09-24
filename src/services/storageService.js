@@ -14,6 +14,8 @@ import {
   importBatchDocuments,
   seedDocumentSequence,
   previewDocumentSequence,
+  listReceiptsStaging,
+  listVouchersStaging,
   DEFAULT_STAGING_API_URL
 } from './stagingApiClient';
 
@@ -1162,6 +1164,121 @@ class StorageService {
     const settings = this.getSettings();
     const apiUrl = targetUrl || settings.stagingApiUrl || DEFAULT_STAGING_API_URL;
     return await previewDocumentSequence(docType, apiUrl);
+  }
+
+  async fetchReceiptsFromD1(options = {}) {
+    const settings = this.getSettings();
+    const apiUrl = options.apiUrl || settings.stagingApiUrl || DEFAULT_STAGING_API_URL;
+    try {
+      const res = await listReceiptsStaging({
+        page: options.page || 1,
+        pageSize: options.pageSize || 1000,
+        includeItems: true,
+        ...options
+      }, apiUrl);
+
+      const d1Receipts = (res.receipts || []).map(r => ({
+        id: r.id,
+        receiptNo: cleanLeadingQuote(r.receipt_no),
+        docDate: r.doc_date,
+        dateThai: r.doc_date ? formatThaiDate(r.doc_date) : '',
+        buyerName: cleanLeadingQuote(r.buyer_name),
+        buyerAddress: cleanLeadingQuote(r.buyer_address),
+        buyerTaxId: cleanLeadingQuote(r.buyer_tax_id),
+        taxId: cleanLeadingQuote(r.buyer_tax_id),
+        period: cleanLeadingQuote(r.period),
+        paymentMethod: cleanLeadingQuote(r.payment_method || 'เงินโอน'),
+        payDate: r.pay_date,
+        paymentDateThai: r.pay_date ? formatThaiDate(r.pay_date) : (r.doc_date ? formatThaiDate(r.doc_date) : ''),
+        notes: cleanLeadingQuote(r.notes),
+        cashierName: cleanLeadingQuote(r.cashier_name),
+        status: cleanLeadingQuote(r.status || 'ปกติ'),
+        cancelReason: cleanLeadingQuote(r.cancel_reason),
+        printedTimestamp: r.printed_timestamp || r.updated_at || r.created_at || '',
+        updatedAt: r.updated_at || r.created_at || '',
+        totalAmount: Number(r.total_amount || 0),
+        items: (r.items || []).map(itm => ({
+          id: itm.id,
+          title: cleanLeadingQuote(itm.title || itm.itemTitle),
+          itemTitle: cleanLeadingQuote(itm.itemTitle || itm.title),
+          quantity: Number(itm.quantity || 0),
+          unitPrice: Number(itm.unitPrice || 0),
+          drc: itm.drc || (itm.drcPercent ? `${itm.drcPercent}%` : ''),
+          drcPercent: itm.drcPercent || 0,
+          discountAmount: Number(itm.discountAmount || 0),
+          discountDetails: cleanLeadingQuote(itm.discountDetails),
+          amount: Number(itm.amount !== undefined ? itm.amount : (itm.netAmount || 0)),
+          netAmount: Number(itm.netAmount !== undefined ? itm.netAmount : (itm.amount || 0)),
+          period: cleanLeadingQuote(itm.period || r.period)
+        }))
+      }));
+
+      // Cache to localStorage for offline and consistency
+      if (d1Receipts.length > 0) {
+        localStorage.setItem(KEYS.RECEIPTS, JSON.stringify(d1Receipts));
+      }
+      return d1Receipts;
+    } catch (err) {
+      console.warn('⚠️ [fetchReceiptsFromD1] Failed to fetch from D1:', err.message);
+      return this.getReceipts();
+    }
+  }
+
+  async fetchVouchersFromD1(options = {}) {
+    const settings = this.getSettings();
+    const apiUrl = options.apiUrl || settings.stagingApiUrl || DEFAULT_STAGING_API_URL;
+    try {
+      const res = await listVouchersStaging({
+        page: options.page || 1,
+        pageSize: options.pageSize || 1000,
+        includeItems: true,
+        ...options
+      }, apiUrl);
+
+      const d1Vouchers = (res.vouchers || []).map(v => ({
+        id: v.id,
+        voucherNo: cleanLeadingQuote(v.voucher_no),
+        docDate: v.doc_date,
+        docDateThai: v.doc_date ? formatThaiDate(v.doc_date) : '',
+        dateThai: v.doc_date ? formatThaiDate(v.doc_date) : '',
+        receiverName: cleanLeadingQuote(v.receiver_name),
+        receiver: cleanLeadingQuote(v.receiver_name),
+        mainDescription: cleanLeadingQuote(v.overall_description),
+        overallDescription: cleanLeadingQuote(v.overall_description),
+        refNo: cleanLeadingQuote(v.ref_doc_no),
+        refDocNo: cleanLeadingQuote(v.ref_doc_no),
+        paymentMethod: cleanLeadingQuote(v.payment_method || 'เงินโอน'),
+        chequeNo: cleanLeadingQuote(v.cheque_no),
+        chequeOrDestAcc: cleanLeadingQuote(v.cheque_no),
+        sourceBankAcc: cleanLeadingQuote(v.bank_account),
+        bankAccount: cleanLeadingQuote(v.bank_account),
+        payDate: v.payment_date,
+        payDateThai: v.payment_date ? formatThaiDate(v.payment_date) : (v.doc_date ? formatThaiDate(v.doc_date) : ''),
+        notes: cleanLeadingQuote(v.notes),
+        cashierName: cleanLeadingQuote(v.cashier_name),
+        status: cleanLeadingQuote(v.status || 'ปกติ'),
+        cancelReason: cleanLeadingQuote(v.cancel_reason),
+        printedTimestamp: v.updated_at || v.created_at || '',
+        updatedAt: v.updated_at || v.created_at || '',
+        totalAmount: Number(v.total_amount || 0),
+        items: (v.items || []).map(itm => ({
+          id: itm.id,
+          itemDate: itm.itemDate || v.doc_date,
+          itemDateThai: itm.itemDate ? formatThaiDate(itm.itemDate) : (v.doc_date ? formatThaiDate(v.doc_date) : ''),
+          description: cleanLeadingQuote(itm.description),
+          amount: Number(itm.amount || 0)
+        }))
+      }));
+
+      // Cache to localStorage for offline and consistency
+      if (d1Vouchers.length > 0) {
+        localStorage.setItem(KEYS.VOUCHERS, JSON.stringify(d1Vouchers));
+      }
+      return d1Vouchers;
+    } catch (err) {
+      console.warn('⚠️ [fetchVouchersFromD1] Failed to fetch from D1:', err.message);
+      return this.getVouchers();
+    }
   }
 }
 
